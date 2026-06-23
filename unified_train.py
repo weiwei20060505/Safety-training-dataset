@@ -25,6 +25,9 @@ from sklearn.linear_model import SGDClassifier, LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.class_weight import compute_class_weight
+from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.under_sampling import RandomUnderSampler
+from sklearn.decomposition import PCA
 import lightgbm as lgb
 import warnings
 
@@ -107,12 +110,7 @@ class DataSplitter:
         X_train, X_val, y_train, y_val = train_test_split(
             X_train_val, y_train_val, test_size=0.25, random_state=random_state, stratify=y_train_val
         )
-        scaler = StandardScaler()
-        X_train_scaled = scaler.fit_transform(X_train)
-        X_val_scaled = scaler.transform(X_val)
-        X_test_scaled = scaler.transform(X_test)
-
-        return X_train_scaled, X_val_scaled, X_test_scaled, y_train, y_val, y_test, scaler
+        return X_train, X_val, X_test, y_train, y_val, y_test, None
 
 # ================= 第 5 區塊：模型訓練管理器 =================
 class UnifiedModelTrainer:
@@ -123,10 +121,24 @@ class UnifiedModelTrainer:
     def train_sgd(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
         """[動態組] SGD 逐輪訓練 (Epochs)"""
         print(f"\n  [SGD] 訓練 {y_name} 模型 (逐輪監控)...")
-        y_train_np = y_train.values if hasattr(y_train, 'values') else y_train
         
-        # 🌟【關鍵修改 1】在訓練前，先取得所有可能的類別標籤 (例如 [0, 1])
-        classes = np.unique(y_train_np)
+        # 1. 前置處理器擬合與轉換 (Fit only on train, Val/Test only transform)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        sampler = RandomUnderSampler(random_state=42)
+        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        
+        pca = PCA(n_components=128, random_state=42)
+        X_train_pca = pca.fit_transform(X_train_res)
+        X_val_pca = pca.transform(X_val_scaled)
+        X_test_pca = pca.transform(X_test_scaled)
+        
+        classes = np.unique(y_train_res)
+        class_weights = compute_class_weight('balanced', classes=classes, y=y_train_res)
+        class_weight_dict = {classes[j]: class_weights[j] for j in range(len(classes))}
         
         clf = SGDClassifier(
             loss='log_loss', 
@@ -134,7 +146,7 @@ class UnifiedModelTrainer:
             alpha=0.01, 
             learning_rate='adaptive', 
             eta0=0.01, 
-            class_weight=None, 
+            class_weight=class_weight_dict, 
             random_state=42
         )
         
@@ -143,76 +155,114 @@ class UnifiedModelTrainer:
         history = {'sizes': [], 'train_acc': [], 'val_acc': []}
 
         for epoch in range(epochs):
-            # 每個 Epoch 開始前打亂訓練資料
-            indices = np.random.permutation(len(X_train))
-            X_shuffled = X_train[indices]
-            y_shuffled = y_train_np[indices]
+            # 每個 Epoch 開始前打亂平衡後的訓練資料
+            indices = np.random.permutation(len(X_train_pca))
+            X_shuffled = X_train_pca[indices]
+            y_shuffled = y_train_res[indices]
             
             # Mini-batch 訓練
-            for start_idx in range(0, len(X_train), batch_size):
-                end_idx = min(start_idx + batch_size, len(X_train))
-                
-                # 🌟【關鍵修改 2】將 classes 參數傳遞給 partial_fit
-                clf.partial_fit(
-                    X_shuffled[start_idx:end_idx], 
-                    y_shuffled[start_idx:end_idx], 
-                    classes=classes
-                )
+            for start_idx in range(0, len(X_train_pca), batch_size):
+                end_idx = min(start_idx + batch_size, len(X_train_pca))
+                clf.partial_fit(X_shuffled[start_idx:end_idx], y_shuffled[start_idx:end_idx], classes=classes)
                 
             history['sizes'].append(epoch + 1)
-            history['train_acc'].append(accuracy_score(y_train, clf.predict(X_train)))
-            history['val_acc'].append(accuracy_score(y_val, clf.predict(X_val)))
+            history['train_acc'].append(accuracy_score(y_train_res, clf.predict(X_train_pca)))
+            history['val_acc'].append(accuracy_score(y_val, clf.predict(X_val_pca)))
 
-        y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
+        y_pred = clf.predict(X_test_pca)
+        y_pred_proba = clf.predict_proba(X_test_pca)[:, 1]
         
-        return clf, y_pred, y_pred_proba, history, None
+        final_pipeline = ImbPipeline([
+            ('scaler', scaler),
+            ('pca', pca),
+            ('clf', clf)
+        ])
+        return final_pipeline, y_pred, y_pred_proba, history, None
 
     def train_mlp(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
         """[動態組] MLP 逐輪訓練 (Epochs)"""
         print(f"\n  [MLP] 訓練 {y_name} 模型 (逐輪監控)...")
-        y_train_np = y_train.values if hasattr(y_train, 'values') else y_train
-        clf = MLPClassifier(hidden_layer_sizes=(32,), random_state=42,alpha=0.01)
-        classes = np.unique(y_train_np)
+        
+        # 1. 前置處理器擬合與轉換 (Fit only on train, Val/Test only transform)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        sampler = RandomUnderSampler(random_state=42)
+        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        
+        pca = PCA(n_components=128, random_state=42)
+        X_train_pca = pca.fit_transform(X_train_res)
+        X_val_pca = pca.transform(X_val_scaled)
+        X_test_pca = pca.transform(X_test_scaled)
+        
+        clf = MLPClassifier(hidden_layer_sizes=(128,), random_state=42, alpha=0.01)
+        classes = np.unique(y_train_res)
         epochs = 100
         batch_size = 64
         history = {'sizes': [], 'train_acc': [], 'val_acc': []}
 
         for epoch in range(epochs):
-            # 每個 Epoch 開始前打亂訓練資料
-            indices = np.random.permutation(len(X_train))
-            X_shuffled = X_train[indices]
-            y_shuffled = y_train_np[indices]
+            # 每個 Epoch 開始前打亂平衡後的訓練資料
+            indices = np.random.permutation(len(X_train_pca))
+            X_shuffled = X_train_pca[indices]
+            y_shuffled = y_train_res[indices]
             
             # Mini-batch 訓練
-            for start_idx in range(0, len(X_train), batch_size):
-                end_idx = min(start_idx + batch_size, len(X_train))
+            for start_idx in range(0, len(X_train_pca), batch_size):
+                end_idx = min(start_idx + batch_size, len(X_train_pca))
                 clf.partial_fit(X_shuffled[start_idx:end_idx], y_shuffled[start_idx:end_idx], classes=classes)
                 
             history['sizes'].append(epoch + 1)
-            history['train_acc'].append(accuracy_score(y_train, clf.predict(X_train)))
-            history['val_acc'].append(accuracy_score(y_val, clf.predict(X_val)))
+            history['train_acc'].append(accuracy_score(y_train_res, clf.predict(X_train_pca)))
+            history['val_acc'].append(accuracy_score(y_val, clf.predict(X_val_pca)))
 
-        y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
-        return clf, y_pred, y_pred_proba, history, None
+        y_pred = clf.predict(X_test_pca)
+        y_pred_proba = clf.predict_proba(X_test_pca)[:, 1]
+        
+        final_pipeline = ImbPipeline([
+            ('scaler', scaler),
+            ('pca', pca),
+            ('clf', clf)
+        ])
+        return final_pipeline, y_pred, y_pred_proba, history, None
 
     def train_lgb(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
         """[動態組] LightGBM 逐樹訓練 (Trees)"""
         print(f"\n  [LGB] 訓練 {y_name} 模型 (逐樹監控)...")
+        
+        # 1. 前置處理器擬合與轉換 (Fit only on train, Val/Test only transform)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        sampler = RandomUnderSampler(random_state=42)
+        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        
+        pca = PCA(n_components=128, random_state=42)
+        X_train_pca = pca.fit_transform(X_train_res)
+        X_val_pca = pca.transform(X_val_scaled)
+        X_test_pca = pca.transform(X_test_scaled)
+        
+        # 放寬樹參數以學習更複雜的非線性關係
         clf = lgb.LGBMClassifier(
-                n_estimators=100, 
-                learning_rate=0.05, 
-                random_state=42, 
-                max_depth=3,          # 限制樹深
-                num_leaves=7,         # 限制葉子數
-                reg_alpha=0.1,        # L1 正則化
-                reg_lambda=0.1,       # L2 正則化
-                verbose=-1
-            )
+            n_estimators=100, 
+            learning_rate=0.05, 
+            random_state=42, 
+            class_weight='balanced',
+            max_depth=10,
+            num_leaves=31,
+            reg_alpha=0.05,
+            reg_lambda=0.05,
+            verbose=-1
+        )
+        
+        # 利用 eval_metric 紀錄訓練過程的 binary_error (錯誤率)
         clf.fit(
-            X_train, y_train,
-            eval_set=[(X_train, y_train), (X_val, y_val)],
+            X_train_pca, y_train_res,
+            eval_set=[(X_train_pca, y_train_res), (X_val_pca, y_val)],
             eval_names=['train', 'val'],
             eval_metric='binary_error',
             callbacks=[lgb.log_evaluation(period=0)]
@@ -224,18 +274,30 @@ class UnifiedModelTrainer:
             'val_acc': [1 - x for x in clf.evals_result_['val']['binary_error']]
         }
 
-        y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
-        return clf, y_pred, y_pred_proba, history, None
+        y_pred = clf.predict(X_test_pca)
+        y_pred_proba = clf.predict_proba(X_test_pca)[:, 1]
+        
+        final_pipeline = ImbPipeline([
+            ('scaler', scaler),
+            ('pca', pca),
+            ('clf', clf)
+        ])
+        return final_pipeline, y_pred, y_pred_proba, history, None
 
     def train_lr(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
         """[靜態組] LR 資料量學習曲線 (學習曲線函數)"""
         print(f"\n  [LR] 訓練 {y_name} 模型 (評估 5 份資料量)...")
-        clf = LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42)
+        
+        pipeline = ImbPipeline([
+            ('scaler', StandardScaler()),
+            ('sampler', RandomUnderSampler(random_state=42)),
+            ('pca', PCA(n_components=128, random_state=42)),
+            ('clf', LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42))
+        ])
 
         # 使用 Scikit-learn 的 learning_curve 函數，自動處理分層 Stratified 5-Fold 與累積增長
         train_sizes, train_scores, val_scores = learning_curve(
-            clf, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
             train_sizes=np.linspace(0.2, 1.0, 5) # 20%, 40%, 60%, 80%, 100%
         )
         lc_history = {
@@ -244,20 +306,27 @@ class UnifiedModelTrainer:
             'val': val_scores.mean(axis=1)
         }
 
-        # 最終模型採用完整訓練集
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
-        return clf, y_pred, y_pred_proba, None, lc_history
+        # 最終模型採用完整訓練集擬合整個 pipeline
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_test)
+        y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+        return pipeline, y_pred, y_pred_proba, None, lc_history
 
     def train_rf(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
         """[靜態組] RF 資料量學習曲線 (學習曲線函數)"""
         print(f"\n  [RF] 訓練 {y_name} 模型 (評估 5 份資料量)...")
-        clf = RandomForestClassifier(n_estimators=100, max_depth=3, random_state=42, n_jobs=-1,min_samples_leaf=10)
+        
+        # 放寬樹參數：max_depth=10
+        pipeline = ImbPipeline([
+            ('scaler', StandardScaler()),
+            ('sampler', RandomUnderSampler(random_state=42)),
+            ('pca', PCA(n_components=128, random_state=42)),
+            ('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1))
+        ])
         
         # 使用 Scikit-learn 的 learning_curve 函數，自動處理分層 Stratified 5-Fold 與累積增長
         train_sizes, train_scores, val_scores = learning_curve(
-            clf, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
             train_sizes=np.linspace(0.2, 1.0, 5) # 20%, 40%, 60%, 80%, 100%
         )
         lc_history = {
@@ -266,10 +335,10 @@ class UnifiedModelTrainer:
             'val': val_scores.mean(axis=1)
         }
 
-        clf.fit(X_train, y_train)
-        y_pred = clf.predict(X_test)
-        y_pred_proba = clf.predict_proba(X_test)[:, 1]
-        return clf, y_pred, y_pred_proba, None, lc_history
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_test)
+        y_pred_proba = pipeline.predict_proba(X_test)[:, 1]
+        return pipeline, y_pred, y_pred_proba, None, lc_history
 
 # ================= 第 6 區塊：評估指標 =================
 class MetricsCalculator:
@@ -415,7 +484,7 @@ def main():
     print("="*80)
 
     # 請確保這裡的檔案名稱與你的環境相符
-    DATA_PATH = "experiment_results_train_1000.pkl"
+    DATA_PATH = "experiment_results_train_10000.pkl"
     if not os.path.exists(DATA_PATH):
         DATA_PATH = "experiment_results.pkl"
     if not os.path.exists(DATA_PATH):

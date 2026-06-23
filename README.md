@@ -73,17 +73,7 @@ pip install -r requirements.txt
 
 ### 基本用法
 
-#### 步驟 1：生成測試數據
 
-```bash
-# 產生基本測試數據 (500筆模擬樣本)
-python old_python/generate_test_data.py
-
-# 或產生修正統計陷阱後的改進數據 (2000筆模擬樣本，包含交叉驗證預測)
-python old_python/generate_improved_data.py
-```
-
-輸出：`test_experiment_results.pkl` 或 `improved_experiment_results.pkl`
 
 #### 步驟 2：執行訓練框架
 
@@ -154,7 +144,7 @@ python unified_train.py
 
 - **總樣本數**：通常 500-5000
 - **層數**：6 層隱藏狀態
-- **隱藏維度**：768 維
+- **隱藏維度**：1024 維
 - **標籤分布**：harmful vs benign
 
 ## 📖 使用指南
@@ -162,8 +152,7 @@ python unified_train.py
 ### 使用測試數據
 
 ```bash
-# 1. 生成測試數據（推薦使用改進版本以避免統計陷阱）
-python old_python/generate_improved_data.py
+
 
 # 2. 訓練模型
 python unified_train.py

@@ -20,12 +20,17 @@ model_name = os.getenv("MODEL_NAME")
 client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
 # ================= 2. 定義輔助與非同步工作 =================
-sem = asyncio.Semaphore(10)
+sem = asyncio.Semaphore(30)
 
-def save_results(results_list, checkpoint=False):
-    if not results_list:
-        return
-    results_df = pd.DataFrame(results_list)
+def save_results(new_results_list, existing_results_list, checkpoint=False):
+    # 合併新舊結果，使用 id 作為 key 避免重複
+    all_results = {r['id']: r for r in existing_results_list}
+    for r in new_results_list:
+        all_results[r['id']] = r
+        
+    combined_list = list(all_results.values())
+    results_df = pd.DataFrame(combined_list)
+    # 按 id 排序以維持順序
     results_df = results_df.sort_values(by="id").reset_index(drop=True)
     
     pkl_name = "experiment_results_train.pkl"
@@ -35,7 +40,7 @@ def save_results(results_list, checkpoint=False):
     results_df.to_csv(csv_name, index=False, encoding='utf-8-sig')
     
     status = "暫存" if checkpoint else "完成"
-    tqdm.write(f"[{status}] 已儲存 {len(results_df)} 筆資料至 {pkl_name} 與 {csv_name}")
+    tqdm.write(f"[{status}] 已合併並儲存共 {len(results_df)} 筆資料至 {pkl_name} 與 {csv_name}")
 
 async def process_row(index, row):
     # Train 資料的 prompt 選擇邏輯：優先使用 adversarial，否則用 vanilla
@@ -99,7 +104,7 @@ async def process_row(index, row):
 async def main():
     # 解析參數
     parser = argparse.ArgumentParser(description="Async run experiment train")
-    parser.add_argument("--all", action="store_true", help="使用全部資料集")
+    parser.add_argument("--all", action="store_true", help="使用全部未處理資料集")
     parser.add_argument("-n", "--n_samples", type=int, default=2000, help="隨機抽取的筆數 (預設: 2000)")
     
     # 互動式模式判斷：當無任何參數，且為終端機執行時
@@ -119,49 +124,79 @@ async def main():
     else:
         args = parser.parse_args()
 
+    pkl_name = "experiment_results_train.pkl"
+    
+    # 讀取已處理的 IDs 避免重覆抽樣
+    processed_ids = set()
+    existing_results = []
+    if os.path.exists(pkl_name):
+        try:
+            existing_df = pd.read_pickle(pkl_name)
+            # 排除 model_reply 為空或為 ERROR 的項目，這些需要重跑
+            valid_existing = existing_df[
+                existing_df['model_reply'].notna() & 
+                (existing_df['model_reply'] != '') & 
+                (~existing_df['model_reply'].str.startswith('ERROR:'))
+            ]
+            processed_ids = set(valid_existing['id'].tolist())
+            existing_results = existing_df.to_dict(orient='records')
+            print(f"[讀取] 偵測到已存在的存檔，共 {len(existing_df)} 筆，其中已成功處理 {len(processed_ids)} 筆將予以排除。")
+        except Exception as e:
+            print(f"[警告] 讀取既有 pickle 檔案失敗，將當作全新實驗開始。錯誤資訊: {e}")
+
     print("正在登入 Hugging Face 並載入 train 資料集...")
     login(token=hf_token)
     dataset = load_dataset("allenai/wildjailbreak", "train", delimiter="\t", keep_default_na=False)
     df = dataset['train'].to_pandas()
 
     print(f"[成功] 載入 'train' 資料集，共 {len(df)} 筆資料")
-    print(f"[欄位] {list(df.columns)}")
-    print(f"[資料類型分布]")
-    print(df['data_type'].value_counts())
+    df['original_index'] = df.index  # 紀錄 Hugging Face 的原始 index
+
+    # 排除已成功處理的資料
+    if processed_ids:
+        filtered_df = df[~df['original_index'].isin(processed_ids)].reset_index(drop=True)
+        print(f"[過濾] 排除 {len(processed_ids)} 筆已完成項目，剩餘 {len(filtered_df)} 筆未處理資料")
+    else:
+        filtered_df = df.reset_index(drop=True)
+
+    if len(filtered_df) == 0:
+        print("[提示] 所有資料皆已處理完畢，無需進行推論！")
+        return
 
     # 決定使用的資料範圍
     if args.all:
-        experiment_df = df.reset_index(drop=True)
-        print(f"[選取] 使用全部資料集，共 {len(experiment_df)} 筆資料")
+        experiment_df = filtered_df
+        print(f"[選取] 使用所有剩餘未處理資料，共 {len(experiment_df)} 筆資料")
     else:
-        n_samples = min(args.n_samples, len(df))
-        experiment_df = df.sample(n=n_samples, random_state=42).reset_index(drop=True)
-        print(f"[選取] 隨機抽取 {n_samples} 筆資料 (從 {len(df)} 筆中)")
+        n_samples = min(args.n_samples, len(filtered_df))
+        # 預設為隨機選取且排除已處理
+        experiment_df = filtered_df.sample(n=n_samples, random_state=42).reset_index(drop=True)
+        print(f"[選取] 從剩餘未處理資料中隨機抽取 {n_samples} 筆資料 (原總數 {len(df)} 筆)")
 
     print(f"\n[開始] 對 {len(experiment_df)} 筆 train 資料進行非同步推論與特徵萃取！")
     print("[預計時間] 取決於網路狀況與資料量")
 
     rows = experiment_df.to_dict(orient='records')
-    tasks = [process_row(idx, row) for idx, row in enumerate(rows)]
+    tasks = [process_row(row['original_index'], row) for row in rows]
 
-    results = []
+    new_results = []
     # 使用 asyncio.as_completed，並搭配 tqdm 顯示進度
     for f in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="推論進度"):
         result = await f
-        results.append(result)
+        new_results.append(result)
         
-        # 每 100 筆資料存檔一次
-        if len(results) % 100 == 0:
-            save_results(results, checkpoint=True)
+        # 每 100 筆資料存檔一次 (與舊資料合併儲存)
+        if len(new_results) % 100 == 0:
+            save_results(new_results, existing_results, checkpoint=True)
 
     # 最終存檔
-    save_results(results, checkpoint=False)
+    save_results(new_results, existing_results, checkpoint=False)
 
-    success_count = sum(1 for r in results if r['model_reply'] != 'ERROR' and not r['model_reply'].startswith('ERROR:'))
-    print(f"[完成] Train 資料已儲存!")
+    success_count = sum(1 for r in new_results if r['model_reply'] != 'ERROR' and not r['model_reply'].startswith('ERROR:'))
+    print(f"[完成] Train 資料已增量儲存!")
     print(f"  - experiment_results_train.pkl")
     print(f"  - experiment_results_train.csv")
-    print(f"[統計] 成功處理: {success_count} / {len(results)}")
+    print(f"[統計] 本次成功處理: {success_count} / {len(new_results)}")
 
 # 啟動非同步事件迴圈
 if __name__ == "__main__":
