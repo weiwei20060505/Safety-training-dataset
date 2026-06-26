@@ -23,12 +23,22 @@ client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 sem = asyncio.Semaphore(30)
 
 def save_results(new_results_list, existing_results_list, checkpoint=False):
+    # 只將新結果中 is_valid 為 True 且 model_reply 為 safe/unsafe 的項目進行存檔
+    valid_new = [
+        r for r in new_results_list 
+        if r.get('is_valid', False) or (r.get('model_reply') and str(r['model_reply']).strip().lower() in ['safe', 'unsafe'])
+    ]
+    
     # 合併新舊結果，使用 id 作為 key 避免重複
     all_results = {r['id']: r for r in existing_results_list}
-    for r in new_results_list:
+    for r in valid_new:
         all_results[r['id']] = r
         
     combined_list = list(all_results.values())
+    if not combined_list:
+        tqdm.write(f"[{'暫存' if checkpoint else '完成'}] 無有效資料可儲存")
+        return
+        
     results_df = pd.DataFrame(combined_list)
     # 按 id 排序以維持順序
     results_df = results_df.sort_values(by="id").reset_index(drop=True)
@@ -40,7 +50,7 @@ def save_results(new_results_list, existing_results_list, checkpoint=False):
     results_df.to_csv(csv_name, index=False, encoding='utf-8-sig')
     
     status = "暫存" if checkpoint else "完成"
-    tqdm.write(f"[{status}] 已合併並儲存共 {len(results_df)} 筆資料至 {pkl_name} 與 {csv_name}")
+    tqdm.write(f"[{status}] 已合併並儲存共 {len(results_df)} 筆有效資料至 {pkl_name} 與 {csv_name}")
 
 async def process_row(index, row):
     # Train 資料的 prompt 選擇邏輯：優先使用 adversarial，否則用 vanilla
@@ -73,6 +83,20 @@ async def process_row(index, row):
                 model_reply = dumped_data['choices'][0]['message']['content']
                 hidden_state = dumped_data.get('kv_transfer_params', {}).get('last_input_hidden_state', [])
 
+                reply_clean = model_reply.strip().lower() if model_reply else ""
+                if reply_clean not in ["safe", "unsafe"]:
+                    return {
+                        "id": index,
+                        "data_type": row['data_type'],
+                        "vanilla": row.get('vanilla', ''),
+                        "adversarial": row.get('adversarial', ''),
+                        "prompt_source": prompt_source,
+                        "prompt": prompt_text,
+                        "model_reply": f"INVALID: {model_reply}",
+                        "hidden_state": [],
+                        "is_valid": False
+                    }
+
                 return {
                     "id": index,
                     "data_type": row['data_type'],
@@ -81,7 +105,8 @@ async def process_row(index, row):
                     "prompt_source": prompt_source,
                     "prompt": prompt_text,
                     "model_reply": model_reply,
-                    "hidden_state": hidden_state
+                    "hidden_state": hidden_state,
+                    "is_valid": True
                 }
 
             except Exception as e:
@@ -94,7 +119,8 @@ async def process_row(index, row):
                         "prompt_source": prompt_source,
                         "prompt": prompt_text,
                         "model_reply": f"ERROR: {e}",
-                        "hidden_state": []
+                        "hidden_state": [],
+                        "is_valid": False
                     }
 
                 sleep_time = (base_delay ** attempt) + random.uniform(0, 1)
@@ -132,15 +158,20 @@ async def main():
     if os.path.exists(pkl_name):
         try:
             existing_df = pd.read_pickle(pkl_name)
-            # 排除 model_reply 為空或為 ERROR 的項目，這些需要重跑
+            # 排除 model_reply 為空、為 ERROR 或不為 safe/unsafe 的項目，這些需要重跑
             valid_existing = existing_df[
                 existing_df['model_reply'].notna() & 
                 (existing_df['model_reply'] != '') & 
-                (~existing_df['model_reply'].str.startswith('ERROR:'))
+                (existing_df['model_reply'].str.strip().str.lower().isin(['safe', 'unsafe']))
             ]
             processed_ids = set(valid_existing['id'].tolist())
-            existing_results = existing_df.to_dict(orient='records')
-            print(f"[讀取] 偵測到已存在的存檔，共 {len(existing_df)} 筆，其中已成功處理 {len(processed_ids)} 筆將予以排除。")
+            existing_results = valid_existing.to_dict(orient='records')
+            
+            ignored_count = len(existing_df) - len(valid_existing)
+            print(f"[讀取] 偵測到已存在的存檔，共 {len(existing_df)} 筆。")
+            print(f"  └─ 有效筆數 (safe/unsafe): {len(valid_existing)} 筆 (保留)")
+            if ignored_count > 0:
+                print(f"  └─ 無效/錯誤筆數: {ignored_count} 筆 (已排除，本次將會重跑)")
         except Exception as e:
             print(f"[警告] 讀取既有 pickle 檔案失敗，將當作全新實驗開始。錯誤資訊: {e}")
 
@@ -192,11 +223,19 @@ async def main():
     # 最終存檔
     save_results(new_results, existing_results, checkpoint=False)
 
-    success_count = sum(1 for r in new_results if r['model_reply'] != 'ERROR' and not r['model_reply'].startswith('ERROR:'))
+    success_count = sum(1 for r in new_results if r.get('is_valid', False))
+    invalid_count = sum(1 for r in new_results if not r.get('is_valid', False) and not str(r.get('model_reply', '')).startswith('ERROR:'))
+    error_count = sum(1 for r in new_results if str(r.get('model_reply', '')).startswith('ERROR:'))
+    
     print(f"[完成] Train 資料已增量儲存!")
     print(f"  - experiment_results_train.pkl")
     print(f"  - experiment_results_train.csv")
-    print(f"[統計] 本次成功處理: {success_count} / {len(new_results)}")
+    print(f"[統計] 本次處理總數: {len(new_results)}")
+    print(f"  - 成功 (safe/unsafe): {success_count} 筆")
+    if invalid_count > 0:
+         print(f"  - 回覆無效 (非 safe/unsafe): {invalid_count} 筆 (已排除，不予存檔)")
+    if error_count > 0:
+         print(f"  - API 錯誤: {error_count} 筆 (已排除，不予存檔)")
 
 # 啟動非同步事件迴圈
 if __name__ == "__main__":

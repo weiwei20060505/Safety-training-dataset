@@ -3,7 +3,7 @@ import numpy as np
 
 # 1. 讀取 Pickle 檔案
 print("正在讀取實驗資料...")
-name = "experiment_results_train.pkl"  # 這是你剛剛從 run_experiment.py 存下來的檔案名稱
+name = "experiment_results_eval.pkl"  # 這是你剛剛從 run_experiment.py 存下來的檔案名稱
 df = pd.read_pickle(name)
 
 # 2. 檢查總筆數

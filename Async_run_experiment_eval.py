@@ -101,11 +101,11 @@ async def main():
     results_df = results_df.sort_values(by="id").reset_index(drop=True)
 
     # 存成 Pickle 格式
-    results_df.to_pickle("experiment_results.pkl")
+    results_df.to_pickle("experiment_results_eval.pkl")
     # 同時存一份 CSV
-    results_df.to_csv("experiment_results.csv", index=False, encoding='utf-8-sig')
+    results_df.to_csv("experiment_results_eval.csv", index=False, encoding='utf-8-sig')
 
-    print("實驗完成！特徵資料已儲存為 experiment_results.pkl")
+    print("實驗完成！特徵資料已儲存為 experiment_results_eval.pkl")
 
 # 啟動非同步事件迴圈
 if __name__ == "__main__":

@@ -130,7 +130,7 @@ python Isotonic_Regression_corrected.py
   * 參數設定：`n_estimators=100`, `max_depth=10` (放寬決策樹最大深度至 10 以增強擬合複雜表徵的能力)。
   * 特點：Bagging 集成模型，同樣透過切分 5 份資料量分析數據邊際效益。
 * **LightGBM (LGBMClassifier)**:
-  * 參數設定：`n_estimators=100`, `learning_rate=0.05`, `max_depth=10`, `num_leaves=31`, `reg_alpha=0.05` (L1 正則), `reg_lambda=0.05` (L2 正則), `class_weight='balanced'`。
+  * 參數設定：`n_estimators=100`, `learning_rate=0.05`, `max_depth=10`, `num_leaves=31`, `reg_alpha=0.05` (L1 正則), `reg_lambda=0.05` (L2 正則)。
   * 特點：放寬樹的深度與葉子節點數以捕捉更具彈性的非線性決策邊界，並加入雙重正則化防止過擬合。
 
 ---
