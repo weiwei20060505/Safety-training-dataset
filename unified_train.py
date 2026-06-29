@@ -65,25 +65,32 @@ class ModelResults:
         
         # 最終評估指標
         self.y1_metrics = {}  
+        self.y2_metrics = {}  
         self.y3_metrics = {}  
         self.y1_model = None  
+        self.y2_model = None  
         self.y3_model = None  
         
         # [動態組] 逐輪 (Epoch) 訓練歷史
         self.y1_epoch_history = None  
+        self.y2_epoch_history = None  
         self.y3_epoch_history = None  
         
         # [靜態組] 資料量 (Data-size) 學習曲線歷史
         self.y1_lc_history = None 
+        self.y2_lc_history = None 
         self.y3_lc_history = None 
 
         # [靜態組] 資料量 (Data-size) Balanced Accuracy 學習曲線歷史
         self.y1_bal_lc_history = None
+        self.y2_bal_lc_history = None
         self.y3_bal_lc_history = None
         
         # [ROC 曲線相關] 儲存測試集的真實標籤與預測機率
         self.y1_test_true = None
         self.y1_test_proba = None
+        self.y2_test_true = None
+        self.y2_test_proba = None
         self.y3_test_true = None
         self.y3_test_proba = None
 
@@ -107,10 +114,10 @@ class DataPreprocessor:
 
     def create_targets(self):
         print("[3] 正在創建目標變數...")
-        self.y1 = self.df['data_type'].str.contains('harmful').astype(int)
-        self.y2 = self.df['model_reply'].str.lower().str.contains('unsafe').astype(int)
+        self.y1 = self.df['model_reply'].str.lower().str.contains('unsafe').astype(int)
+        self.y2 = self.df['data_type'].str.contains('harmful').astype(int)
         self.y3 = (self.y1 == self.y2).astype(int)
-        return self.y1, self.y3
+        return self.y1, self.y2, self.y3
 
 # ================= 第 4 區塊：資料分割和標準化 =================
 class DataSplitter:
@@ -412,7 +419,7 @@ class UnifiedModelTrainer:
         ])
 
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=2,
             train_sizes=np.linspace(0.2, 1.0, 5)
         )
         lc_history = {
@@ -422,7 +429,7 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=2,
             train_sizes=np.linspace(0.2, 1.0, 5)
         )
         bal_lc_history = {
@@ -444,11 +451,11 @@ class UnifiedModelTrainer:
             ('scaler', StandardScaler()),
             ('sampler', RandomUnderSampler(random_state=42)),
             ('pca', PCA(n_components=128, random_state=42)),
-            ('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1))
+            ('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=2))
         ])
         
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=2,
             train_sizes=np.linspace(0.2, 1.0, 5)
         )
         lc_history = {
@@ -458,7 +465,7 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=2,
             train_sizes=np.linspace(0.2, 1.0, 5)
         )
         bal_lc_history = {
@@ -765,7 +772,7 @@ def main():
     preprocessor = DataPreprocessor(DATA_PATH)
     df = preprocessor.load_data()
     X_3d = preprocessor.extract_features()
-    y1, y3 = preprocessor.create_targets()
+    y1, y2, y3 = preprocessor.create_targets()
 
     num_layers = X_3d.shape[1]
     
@@ -778,6 +785,7 @@ def main():
 
         # 資料分割
         X_train_y1, X_val_y1, X_test_y1, y_train_y1, y_val_y1, y_test_y1, _ = DataSplitter.split_and_scale(X_2d, y1, layer_idx)
+        X_train_y2, X_val_y2, X_test_y2, y_train_y2, y_val_y2, y_test_y2, _ = DataSplitter.split_and_scale(X_2d, y2, layer_idx)
         X_train_y3, X_val_y3, X_test_y3, y_train_y3, y_val_y3, y_test_y3, _ = DataSplitter.split_and_scale(X_2d, y3, layer_idx)
 
         layer_output_dir = os.path.join(OUTPUT_DIR, f"layer_{layer_idx+1}")
@@ -811,6 +819,21 @@ def main():
             joblib.dump(clf_y1_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y1_best.pkl"))
             joblib.dump(clf_y1_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y1_last.pkl"))
             
+            # 訓練 y2
+            clf_y2_best, clf_y2_last, y2_pred, y2_proba, epoch_hist_y2, lc_hist_y2, bal_lc_hist_y2 = train_func(
+                X_train_y2, X_val_y2, X_test_y2, y_train_y2, y_val_y2, y_test_y2, 'Y2'
+            )
+            results.y2_epoch_history = epoch_hist_y2
+            results.y2_lc_history = lc_hist_y2
+            results.y2_bal_lc_history = bal_lc_hist_y2
+            results.y2_metrics = MetricsCalculator.calculate_metrics(y_test_y2, y2_pred, y2_proba)
+            results.y2_test_true = y_test_y2
+            results.y2_test_proba = y2_proba
+            
+            # 保存 y2 模型：分別保存 best 和 last
+            joblib.dump(clf_y2_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_best.pkl"))
+            joblib.dump(clf_y2_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_last.pkl"))
+            
             # 訓練 y3
             clf_y3_best, clf_y3_last, y3_pred, y3_proba, epoch_hist_y3, lc_hist_y3, bal_lc_hist_y3 = train_func(
                 X_train_y3, X_val_y3, X_test_y3, y_train_y3, y_val_y3, y_test_y3, 'Y3'
@@ -829,20 +852,26 @@ def main():
             all_results[model_name] = results
 
         # 輸出指標表格
-        print(f"\n📊 [第 {layer_idx+1} 層] Y1 (有害性任務) 性能指標:")
+        print(f"\n📊 [第 {layer_idx+1} 層] Y1 (模型回覆安全性任務) 性能指標:")
         metrics_df_y1 = pd.DataFrame({m: all_results[m].y1_metrics for m in all_results}).T
         print(metrics_df_y1.to_string())
+
+        print(f"\n📊 [第 {layer_idx+1} 層] Y2 (提示詞有害性任務) 性能指標:")
+        metrics_df_y2 = pd.DataFrame({m: all_results[m].y2_metrics for m in all_results}).T
+        print(metrics_df_y2.to_string())
 
         print(f"\n📊 [第 {layer_idx+1} 層] Y3 (一致性任務) 性能指標:")
         metrics_df_y3 = pd.DataFrame({m: all_results[m].y3_metrics for m in all_results}).T
         print(metrics_df_y3.to_string())
 
-        # 1. 先定義好兩個子資料夾的路徑
+        # 1. 先定義好三個子資料夾的路徑
         y1_img_dir = os.path.join(layer_output_dir, "y1_png")
+        y2_img_dir = os.path.join(layer_output_dir, "y2_png")
         y3_img_dir = os.path.join(layer_output_dir, "y3_png")
         
         # 2. 自動建立資料夾 (exist_ok=True 會自動處理已存在的情況，不報錯)
         os.makedirs(y1_img_dir, exist_ok=True)
+        os.makedirs(y2_img_dir, exist_ok=True)
         os.makedirs(y3_img_dir, exist_ok=True)
         
         # 3. 生成進階曲線與對比圖表 (直接傳入變數，程式碼超乾淨)
@@ -853,6 +882,12 @@ def main():
         PlotGenerator.plot_model_comparison(all_results, y1_img_dir, 'y1', layer_idx)
         PlotGenerator.plot_roc_curve(all_results, y1_img_dir, 'y1', layer_idx)
         PlotGenerator.plot_balanced_accuracy_curves(all_results, y1_img_dir, 'y1', layer_idx)
+        
+        # Y2 的圖表
+        PlotGenerator.plot_all_curves(all_results, y2_img_dir, 'y2', layer_idx)
+        PlotGenerator.plot_model_comparison(all_results, y2_img_dir, 'y2', layer_idx)
+        PlotGenerator.plot_roc_curve(all_results, y2_img_dir, 'y2', layer_idx)
+        PlotGenerator.plot_balanced_accuracy_curves(all_results, y2_img_dir, 'y2', layer_idx)
         
         # Y3 的圖表
         PlotGenerator.plot_all_curves(all_results, y3_img_dir, 'y3', layer_idx)
