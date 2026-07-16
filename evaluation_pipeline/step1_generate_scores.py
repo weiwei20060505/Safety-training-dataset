@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 import numpy as np
 import pandas as pd
 import joblib
@@ -27,18 +28,22 @@ class DualLogger:
         self.log.flush()
 
 def main():
+    parser = argparse.ArgumentParser(description="LLM Safety Probe Pipeline - Step 1: Score Generation & Calibration")
+    parser.add_argument("--mode", type=str, choices=["baseline", "split", "all"], default="all",
+                        help="Calibration mode: baseline (unified), split (conditional y1-split), or all (run both)")
+    args = parser.parse_args()
+    
     base_dir = "results/safety_guardrails_evaluation"
-    cache_dir = os.path.join(base_dir, "cache")
-    os.makedirs(cache_dir, exist_ok=True)
+    os.makedirs(base_dir, exist_ok=True)
     
     # Set up dual logging to terminal and execution_log.txt
     sys.stdout = DualLogger(os.path.join(base_dir, "execution_log.txt"))
     
     print("="*60)
-    print("LLM Safety Probe Pipeline - 步驟一: 重度運算 (推論、拆分校正、存 Cache)")
+    print(f"LLM Safety Probe Pipeline - 步驟一: 重度運算 (模式: {args.mode.upper()})")
     print("="*60)
     
-    print("[1] 載入資料集...")
+    print("[1] 載入原始資料集...")
     try:
         # Load datasets from data/ directory
         aug_test1_dict = joblib.load("data/augmented_test1.pkl")
@@ -67,129 +72,186 @@ def main():
         ('data_align', 'aligned_test1.pkl', 'aligned_test2.pkl', 'augmented_test2.pkl', '資料對齊')
     ]
     
-    # Metrics records to save as CSV
-    metrics_records = []
-    # Nested dictionary for predictions cache to save as PKL
-    predictions_cache = {
-        'data_aug': {t: {} for t in targets_list},
-        'data_align': {t: {} for t in targets_list}
-    }
+    # Determine which modes to run
+    modes_to_run = ["baseline", "split"] if args.mode == "all" else [args.mode]
     
-    for dataset_key, test1_file, test2_file, cross_file, dataset_title in datasets:
-        print(f"\n========================================\n處理資料組: {dataset_title} ({dataset_key})\n========================================\n")
+    for mode in modes_to_run:
+        print(f"\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n執行校正模式: {mode.upper()}\n>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         
-        # Load group-specific datasets
-        test1_dict = joblib.load(f"data/{test1_file}")
-        test2_dict = joblib.load(f"data/{test2_file}")
-        cross_dict = joblib.load(f"data/{cross_file}")
-        cross_name = 'aligned_test2' if dataset_key == 'data_aug' else 'augmented_test2'
+        # 💡 [陷阱一解決策略] 每次進入新模式，務必清空與重置快取變數！
+        metrics_records = []
+        predictions_cache = {
+            'data_aug': {t: {} for t in targets_list},
+            'data_align': {t: {} for t in targets_list}
+        }
         
-        for target_name in targets_list:
-            print(f"\n----------------------------------------\n處理目標任務: {target_name.upper()}\n----------------------------------------")
+        cache_dir = os.path.join(base_dir, "cache", mode)
+        models_calib_dir = f"models/calibrated_isotonic/{mode}"
+        os.makedirs(cache_dir, exist_ok=True)
+        os.makedirs(models_calib_dir, exist_ok=True)
+        
+        for dataset_key, test1_file, test2_file, cross_file, dataset_title in datasets:
+            print(f"\n========================================\n處理資料組: {dataset_title} ({dataset_key})\n========================================\n")
             
-            df_test1 = test1_dict[target_name]
-            df_test2 = test2_dict[target_name]
-            df_cross = cross_dict[target_name]
+            # Load group-specific datasets
+            test1_dict = joblib.load(f"data/{test1_file}")
+            test2_dict = joblib.load(f"data/{test2_file}")
+            cross_dict = joblib.load(f"data/{cross_file}")
+            cross_name = 'aligned_test2' if dataset_key == 'data_aug' else 'augmented_test2'
             
-            for layer_num in range(1, 7):
-                print(f"  - 處理第 {layer_num} 層...")
+            for target_name in targets_list:
+                print(f"\n----------------------------------------\n處理目標任務: {target_name.upper()}\n----------------------------------------")
                 
-                # Extract hidden states
-                X_test1 = np.array(df_test1['hidden_state'].tolist())[:, layer_num - 1, :]
-                X_test2 = np.array(df_test2['hidden_state'].tolist())[:, layer_num - 1, :]
-                X_cross = np.array(df_cross['hidden_state'].tolist())[:, layer_num - 1, :]
-                X_eval = X_3d_eval[:, layer_num - 1, :]
+                df_test1 = test1_dict[target_name]
+                df_test2 = test2_dict[target_name]
+                df_cross = cross_dict[target_name]
                 
-                # Ground truths
-                y1_test1, y3_test1 = df_test1['y1'].values, df_test1['y3'].values
-                y1_test2, y3_test2 = df_test2['y1'].values, df_test2['y3'].values
-                y1_cross, y3_cross = df_cross['y1'].values, df_cross['y3'].values
-                
-                predictions_cache[dataset_key][target_name][layer_num] = {
-                    'bin_edges': {},
-                    'splits': {
-                        'test1': {},
-                        'test2': {},
-                        'test2_cross': {},
-                        'eval': {}
-                    }
-                }
-                
-                bin_edges_dict = {m: np.linspace(0.0, 1.0, 11) for m in models_list}
-                
-                for model_name in models_list:
-                    model_path = f"models/unified_training/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
+                for layer_num in range(1, 7):
+                    # Ensure layer subdirectory exists for saving calibrators
+                    layer_calib_dir = os.path.join(models_calib_dir, f"layer_{layer_num}")
+                    os.makedirs(layer_calib_dir, exist_ok=True)
                     
-                    if not os.path.exists(model_path):
-                        continue
-                        
-                    clf = joblib.load(model_path)
+                    # Extract hidden states
+                    X_test1 = np.array(df_test1['hidden_state'].tolist())[:, layer_num - 1, :]
+                    X_test2 = np.array(df_test2['hidden_state'].tolist())[:, layer_num - 1, :]
+                    X_cross = np.array(df_cross['hidden_state'].tolist())[:, layer_num - 1, :]
+                    X_eval = X_3d_eval[:, layer_num - 1, :]
                     
-                    # Predict raw probabilities
-                    p_test1 = clf.predict_proba(X_test1)[:, 1]
-                    p_test2 = clf.predict_proba(X_test2)[:, 1]
-                    p_cross = clf.predict_proba(X_cross)[:, 1]
-                    p_eval = clf.predict_proba(X_eval)[:, 1]
+                    # Ground truths
+                    y1_test1, y3_test1 = df_test1['y1'].values, df_test1['y3'].values
+                    y1_test2, y3_test2 = df_test2['y1'].values, df_test2['y3'].values
+                    y1_cross, y3_cross = df_cross['y1'].values, df_cross['y3'].values
                     
-                    # Formulation based on target_name
-                    if target_name in ['y1', 'y2']:
-                        pre_cal_test1 = np.where(y1_test1 == 1, p_test1, 1.0 - p_test1)
-                        pre_cal_test2 = np.where(y1_test2 == 1, p_test2, 1.0 - p_test2)
-                        pre_cal_cross = np.where(y1_cross == 1, p_cross, 1.0 - p_cross)
-                        pre_cal_eval = np.where(y1_eval == 1, p_eval, 1.0 - p_eval)
-                    else:  # y3
-                        pre_cal_test1 = np.where(y3_test1 == 1, p_test1, 1.0 - p_test1)
-                        pre_cal_test2 = np.where(y3_test2 == 1, p_test2, 1.0 - p_test2)
-                        pre_cal_cross = np.where(y3_cross == 1, p_cross, 1.0 - p_cross)
-                        pre_cal_eval = np.where(y3_eval == 1, p_eval, 1.0 - p_eval)
-                        
-                    # Calibrate on test1 using Isotonic Regression
-                    iso = IsotonicRegression(out_of_bounds='clip')
-                    iso.fit(pre_cal_test1, y3_test1)
-                    
-                    p_cal_test1 = iso.predict(pre_cal_test1)
-                    p_cal_test2 = iso.predict(pre_cal_test2)
-                    p_cal_cross = iso.predict(pre_cal_cross)
-                    p_cal_eval = iso.predict(pre_cal_eval)
-                    
-                    # Cache predictions for plotting later
-                    splits_info = {
-                        'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'y1': y1_test1, 'y3': y3_test1},
-                        'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'y1': y1_test2, 'y3': y3_test2},
-                        'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'y1': y1_cross, 'y3': y3_cross},
-                        'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'y1': y1_eval, 'y3': y3_eval}
+                    predictions_cache[dataset_key][target_name][layer_num] = {
+                        'bin_edges': {},
+                        'splits': {
+                            'test1': {},
+                            'test2': {},
+                            'test2_cross': {},
+                            'eval': {}
+                        }
                     }
                     
-                    predictions_cache[dataset_key][target_name][layer_num]['bin_edges'][model_name] = bin_edges_dict[model_name]
-                    for split_name, s_data in splits_info.items():
-                        predictions_cache[dataset_key][target_name][layer_num]['splits'][split_name][model_name] = s_data
+                    bin_edges_dict = {m: np.linspace(0.0, 1.0, 11) for m in models_list}
+                    
+                    for model_name in models_list:
+                        model_path = f"models/unified_training/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
                         
-                        # Calculate and record metrics
-                        m = utils_calibration.calculate_all_metrics(s_data['y_true'], s_data['y_prob'])
-                        metrics_records.append({
-                            'data_group': 'Data Aug' if dataset_key == 'data_aug' else 'Data Align',
-                            'task': target_name,
-                            'layer': layer_num,
-                            'eval_set': split_name if split_name != 'test2_cross' else cross_name,
-                            'model': model_name,
-                            'brier': m['brier'],
-                            'logloss': m['logloss'],
-                            'reliability': m['reliability'],
-                            'resolution': m['resolution'],
-                            'uncertainty': m['uncertainty']
-                        })
+                        if not os.path.exists(model_path):
+                            continue
+                            
+                        clf = joblib.load(model_path)
                         
-                        # Print detailed log
-                        print(f"    [日誌 - {dataset_title} - 任務: {target_name} | 層數: {layer_num} | 評估集: {split_name} | 模型: {model_name}]")
-                        print(f"      Brier Score: {m['brier']:.5f} | Log Loss: {m['logloss']:.5f} | Reliability: {m['reliability']:.5f} | Resolution: {m['resolution']:.5f} | Uncertainty: {m['uncertainty']:.5f}")
-    
-    # Save the cache files
-    print("\n[2] 儲存運算結果至快取目錄...")
-    df_metrics = pd.DataFrame(metrics_records)
-    df_metrics.to_csv(os.path.join(cache_dir, "all_metrics_records.csv"), index=False)
-    joblib.dump(predictions_cache, os.path.join(cache_dir, "calibrated_predictions.pkl"))
-    
-    print("步驟一執行完畢！已成功將數據存入 results/safety_guardrails_evaluation/cache/")
+                        # Predict raw probabilities
+                        p_test1 = clf.predict_proba(X_test1)[:, 1]
+                        p_test2 = clf.predict_proba(X_test2)[:, 1]
+                        p_cross = clf.predict_proba(X_cross)[:, 1]
+                        p_eval = clf.predict_proba(X_eval)[:, 1]
+                        
+                        # Formulate pre_cal scores based on target_name
+                        if target_name in ['y1', 'y2']:
+                            pre_cal_test1 = np.where(y1_test1 == 1, p_test1, 1.0 - p_test1)
+                            pre_cal_test2 = np.where(y1_test2 == 1, p_test2, 1.0 - p_test2)
+                            pre_cal_cross = np.where(y1_cross == 1, p_cross, 1.0 - p_cross)
+                            pre_cal_eval = np.where(y1_eval == 1, p_eval, 1.0 - p_eval)
+                        else:  # y3
+                            pre_cal_test1 = np.where(y3_test1 == 1, p_test1, 1.0 - p_test1)
+                            pre_cal_test2 = np.where(y3_test2 == 1, p_test2, 1.0 - p_test2)
+                            pre_cal_cross = np.where(y3_cross == 1, p_cross, 1.0 - p_cross)
+                            pre_cal_eval = np.where(y3_eval == 1, p_eval, 1.0 - p_eval)
+                            
+                        # Save model file path
+                        calib_save_path = f"{layer_calib_dir}/{model_name.lower()}_{target_name}_{dataset_key}_iso.pkl"
+                        
+                        # Calibration logic based on mode
+                        if mode == "baseline":
+                            # Fit single unified Isotonic Regression
+                            iso = IsotonicRegression(out_of_bounds='clip')
+                            iso.fit(pre_cal_test1, y3_test1)
+                            
+                            p_cal_test1 = iso.predict(pre_cal_test1)
+                            p_cal_test2 = iso.predict(pre_cal_test2)
+                            p_cal_cross = iso.predict(pre_cal_cross)
+                            p_cal_eval = iso.predict(pre_cal_eval)
+                            
+                            # 💡 儲存單一校正模型
+                            joblib.dump({'iso': iso}, calib_save_path)
+                            
+                        else:  # split mode
+                            # Fit conditional dual Isotonic Regressions (split by y1)
+                            iso_0 = IsotonicRegression(out_of_bounds='clip')
+                            iso_1 = IsotonicRegression(out_of_bounds='clip')
+                            
+                            mask_0 = (y1_test1 == 0)
+                            mask_1 = (y1_test1 == 1)
+                            
+                            if np.sum(mask_0) > 0:
+                                iso_0.fit(pre_cal_test1[mask_0], y3_test1[mask_0])
+                            else:
+                                iso_0.fit([0.0, 1.0], [0.0, 1.0])
+                                
+                            if np.sum(mask_1) > 0:
+                                iso_1.fit(pre_cal_test1[mask_1], y3_test1[mask_1])
+                            else:
+                                iso_1.fit([0.0, 1.0], [0.0, 1.0])
+                                
+                            # 💡 儲存雙軌條件校正模型對
+                            joblib.dump({'iso_0': iso_0, 'iso_1': iso_1}, calib_save_path)
+                            
+                            # Conditional mapping function
+                            def predict_split(score_pre, y1_labels):
+                                score_post = np.zeros_like(score_pre, dtype=float)
+                                m0, m1 = (y1_labels == 0), (y1_labels == 1)
+                                if np.sum(m0) > 0:
+                                    score_post[m0] = iso_0.predict(score_pre[m0])
+                                if np.sum(m1) > 0:
+                                    score_post[m1] = iso_1.predict(score_pre[m1])
+                                return score_post
+                                
+                            p_cal_test1 = predict_split(pre_cal_test1, y1_test1)
+                            p_cal_test2 = predict_split(pre_cal_test2, y1_test2)
+                            p_cal_cross = predict_split(pre_cal_cross, y1_cross)
+                            p_cal_eval = predict_split(pre_cal_eval, y1_eval)
+                        
+                        # Cache predictions for plotting later
+                        splits_info = {
+                            'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'y1': y1_test1, 'y3': y3_test1},
+                            'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'y1': y1_test2, 'y3': y3_test2},
+                            'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'y1': y1_cross, 'y3': y3_cross},
+                            'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'y1': y1_eval, 'y3': y3_eval}
+                        }
+                        
+                        predictions_cache[dataset_key][target_name][layer_num]['bin_edges'][model_name] = bin_edges_dict[model_name]
+                        for split_name, s_data in splits_info.items():
+                            predictions_cache[dataset_key][target_name][layer_num]['splits'][split_name][model_name] = s_data
+                            
+                            # Calculate and record metrics
+                            m = utils_calibration.calculate_all_metrics(s_data['y_true'], s_data['y_prob'])
+                            metrics_records.append({
+                                'data_group': 'Data Aug' if dataset_key == 'data_aug' else 'Data Align',
+                                'task': target_name,
+                                'layer': layer_num,
+                                'eval_set': split_name if split_name != 'test2_cross' else cross_name,
+                                'model': model_name,
+                                'brier': m['brier'],
+                                'logloss': m['logloss'],
+                                'reliability': m['reliability'],
+                                'resolution': m['resolution'],
+                                'uncertainty': m['uncertainty']
+                            })
+                            
+                            # Print detailed log
+                            print(f"    [日誌 - {dataset_title} - 任務: {target_name} | 層數: {layer_num} | 評估集: {split_name} | 模型: {model_name} | 模式: {mode}]")
+                            print(f"      Brier Score: {m['brier']:.5f} | Log Loss: {m['logloss']:.5f} | Reliability: {m['reliability']:.5f} | Resolution: {m['resolution']:.5f} | Uncertainty: {m['uncertainty']:.5f}")
+        
+        # Save the cache files for this mode
+        print(f"\n[2] 儲存 {mode.upper()} 運算結果至快取目錄...")
+        df_metrics = pd.DataFrame(metrics_records)
+        df_metrics.to_csv(os.path.join(cache_dir, "all_metrics_records.csv"), index=False)
+        joblib.dump(predictions_cache, os.path.join(cache_dir, "calibrated_predictions.pkl"))
+        print(f"模式 {mode.upper()} 執行完畢！已成功將模型與快取寫入對應資料夾。")
+        
+    print("\n所有指定模式皆執行完畢！")
 
 if __name__ == '__main__':
     main()
