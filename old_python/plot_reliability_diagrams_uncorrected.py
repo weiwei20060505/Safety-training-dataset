@@ -154,7 +154,7 @@ def main():
     print(" 啟動未校正 Reliability Diagram 繪製工具 (動態分段對齊版)")
     print("="*80)
 
-    TRAIN_PATH = "experiment_results_train.pkl"
+    TRAIN_PATH = "experiment_results_train_10000.pkl"
     if not os.path.exists(TRAIN_PATH):
         TRAIN_PATH = "experiment_results_train_10000.pkl"
     if not os.path.exists(TRAIN_PATH):

@@ -14,9 +14,12 @@ wheels/
 .env.*
 
 # Large datasets and serialized models
+data/
+models/
 *.pkl
 *.csv
 
 # Local results and outputs
-results/
+results*/
+
 

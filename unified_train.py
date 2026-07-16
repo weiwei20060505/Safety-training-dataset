@@ -756,7 +756,7 @@ def main():
     print("="*80)
 
     # 請確保這裡的檔案名稱與你的環境相符
-    DATA_PATH = "experiment_results_train.pkl"
+    DATA_PATH = "experiment_results_train_10000.pkl"
     if not os.path.exists(DATA_PATH):
         DATA_PATH = "experiment_results.pkl"
     if not os.path.exists(DATA_PATH):
