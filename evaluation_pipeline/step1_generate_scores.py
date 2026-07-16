@@ -148,17 +148,17 @@ def main():
                         p_cross = clf.predict_proba(X_cross)[:, 1]
                         p_eval = clf.predict_proba(X_eval)[:, 1]
                         
-                        # Formulate pre_cal scores based on target_name
+                        # 依據任務目標嚴密計算 pre_cal 分數
                         if target_name in ['y1', 'y2']:
                             pre_cal_test1 = np.where(y1_test1 == 1, p_test1, 1.0 - p_test1)
                             pre_cal_test2 = np.where(y1_test2 == 1, p_test2, 1.0 - p_test2)
                             pre_cal_cross = np.where(y1_cross == 1, p_cross, 1.0 - p_cross)
-                            pre_cal_eval = np.where(y1_eval == 1, p_eval, 1.0 - p_eval)
-                        else:  # y3
-                            pre_cal_test1 = np.where(y3_test1 == 1, p_test1, 1.0 - p_test1)
-                            pre_cal_test2 = np.where(y3_test2 == 1, p_test2, 1.0 - p_test2)
-                            pre_cal_cross = np.where(y3_cross == 1, p_cross, 1.0 - p_cross)
-                            pre_cal_eval = np.where(y3_eval == 1, p_eval, 1.0 - p_eval)
+                            pre_cal_eval  = np.where(y1_eval == 1,  p_eval,  1.0 - p_eval)
+                        else:  # y3 任務：絕對不可反轉！直接使用原始預測機率！
+                            pre_cal_test1 = p_test1
+                            pre_cal_test2 = p_test2
+                            pre_cal_cross = p_cross
+                            pre_cal_eval  = p_eval
                             
                         # Save model file path
                         calib_save_path = f"{layer_calib_dir}/{model_name.lower()}_{target_name}_{dataset_key}_iso.pkl"
@@ -178,40 +178,43 @@ def main():
                             joblib.dump({'iso': iso}, calib_save_path)
                             
                         else:  # split mode
-                            # Fit conditional dual Isotonic Regressions (split by y1)
+                            # 1. 依據模型自己的原始機率分流，絕不使用真實標籤 y1 避免洩漏！
+                            y1_pred_test1 = (p_test1 >= 0.5).astype(int)
+                            mask_0_test1 = (y1_pred_test1 == 0)
+                            mask_1_test1 = (y1_pred_test1 == 1)
+                            
                             iso_0 = IsotonicRegression(out_of_bounds='clip')
                             iso_1 = IsotonicRegression(out_of_bounds='clip')
                             
-                            mask_0 = (y1_test1 == 0)
-                            mask_1 = (y1_test1 == 1)
-                            
-                            if np.sum(mask_0) > 0:
-                                iso_0.fit(pre_cal_test1[mask_0], y3_test1[mask_0])
+                            # 2. 分別訓練：特徵 X 是 pre_cal，目標 Y 必須是 y3_test1！絕對不可把 y1 餵給 Y！
+                            if np.sum(mask_0_test1) > 10:
+                                iso_0.fit(pre_cal_test1[mask_0_test1], y3_test1[mask_0_test1])
                             else:
                                 iso_0.fit([0.0, 1.0], [0.0, 1.0])
                                 
-                            if np.sum(mask_1) > 0:
-                                iso_1.fit(pre_cal_test1[mask_1], y3_test1[mask_1])
+                            if np.sum(mask_1_test1) > 10:
+                                iso_1.fit(pre_cal_test1[mask_1_test1], y3_test1[mask_1_test1])
                             else:
                                 iso_1.fit([0.0, 1.0], [0.0, 1.0])
                                 
                             # 💡 儲存雙軌條件校正模型對
                             joblib.dump({'iso_0': iso_0, 'iso_1': iso_1}, calib_save_path)
                             
-                            # Conditional mapping function
-                            def predict_split(score_pre, y1_labels):
-                                score_post = np.zeros_like(score_pre, dtype=float)
-                                m0, m1 = (y1_labels == 0), (y1_labels == 1)
+                            # 3. 條件推論函數：未知資料集依據自己的預測分數分流
+                            def predict_split_calibration(prob_raw, score_pre):
+                                prob_post = np.zeros_like(score_pre, dtype=float)
+                                m0 = (prob_raw < 0.5)
+                                m1 = (prob_raw >= 0.5)
                                 if np.sum(m0) > 0:
-                                    score_post[m0] = iso_0.predict(score_pre[m0])
+                                    prob_post[m0] = iso_0.predict(score_pre[m0])
                                 if np.sum(m1) > 0:
-                                    score_post[m1] = iso_1.predict(score_pre[m1])
-                                return score_post
+                                    prob_post[m1] = iso_1.predict(score_pre[m1])
+                                return prob_post
                                 
-                            p_cal_test1 = predict_split(pre_cal_test1, y1_test1)
-                            p_cal_test2 = predict_split(pre_cal_test2, y1_test2)
-                            p_cal_cross = predict_split(pre_cal_cross, y1_cross)
-                            p_cal_eval = predict_split(pre_cal_eval, y1_eval)
+                            p_cal_test1 = predict_split_calibration(p_test1, pre_cal_test1)
+                            p_cal_test2 = predict_split_calibration(p_test2, pre_cal_test2)
+                            p_cal_cross = predict_split_calibration(p_cross, pre_cal_cross)
+                            p_cal_eval = predict_split_calibration(p_eval, pre_cal_eval)
                         
                         # Cache predictions for plotting later
                         splits_info = {

@@ -21,21 +21,10 @@ class CorrectnessClassifierWrapper(ClassifierMixin, BaseEstimator):
         
     def predict_proba(self, X):
         """
-        Returns prediction correctness probabilities.
-        Column 0: Probability of prediction error (incorrect)
-        Column 1: Probability of prediction correctness (correct)
+        直接回傳底層基礎模型的原始分類機率。
+        第 0 欄 (Column 0): 預測為類別 0 的原始機率 P(Y=0|X)
+        第 1 欄 (Column 1): 預測為類別 1 的原始機率 P(Y=1|X)
         """
-        # # Obtain base class 1 probabilities
-        # p1 = self.base_clf.predict_proba(X)[:, 1]
-        
-        # # Calculate probability of correctness:
-        # # If p1 >= threshold, model predicts class 1, correctness probability is p1
-        # # If p1 < threshold, model predicts class 0, correctness probability is 1 - p1
-        # p_correct = np.where(p1 >= self.threshold, p1, 1.0 - p1)
-        # p_error = 1.0 - p_correct
-        
-        # # Ensure dimensions match (n_samples, 2)
-        # return np.column_stack([p_error, p_correct])
         return self.base_clf.predict_proba(X)
     def predict(self, X):
         """

@@ -144,16 +144,16 @@ def main():
                             # Reconstruct y_hat (pre-cal prediction thresholded at 0.5)
                             y_hat = (y_prob_pre >= 0.5).astype(int)
                             
-                            # Determine score_pre and y_gt dynamically based on target_name
+                            # 💡 修正內部生成 score_pre 與 y_gt 的邏輯，避免 Y3 任務反轉
                             if target_name in ['y1', 'y2']:
                                 score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
                                 y_gt = y1
-                            else:  # y3
-                                score_pre = np.where(y3 == 1, y_prob_pre, 1.0 - y_prob_pre)
+                            else:  # y3 任務：嚴格禁止轉換！
+                                score_pre = y_prob_pre 
                                 y_gt = y3
                                 
                             # 💡 [陷阱三解決策略] 建立對稱的輸出路徑與標題
-                            save_path = f"{base_dir}/{dataset_key}/{mode}/03_Quadrant_Histograms/{eval_set_name}/layer_{layer_num}/{model_name}_histogram.png"
+                            save_path = f"{base_dir}/{dataset_key}/{mode}/03_Quadrant_Histograms/{target_name}/{eval_set_name}/layer_{layer_num}/{model_name}_histogram.png"
                             title_text = f"{dataset_title} {mode_titles[mode]}"
                             
                             plot_quadrant_histograms(
