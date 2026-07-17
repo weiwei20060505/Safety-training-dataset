@@ -58,6 +58,7 @@ def main():
         y_targets_eval = prep_eval.create_targets()
         
         y1_eval = y_targets_eval[0].values if hasattr(y_targets_eval[0], 'values') else y_targets_eval[0]
+        y2_eval = y_targets_eval[1].values if hasattr(y_targets_eval[1], 'values') else y_targets_eval[1]
         y3_eval = y_targets_eval[2].values if hasattr(y_targets_eval[2], 'values') else y_targets_eval[2]
         
     except Exception as e:
@@ -118,9 +119,9 @@ def main():
                     X_eval = X_3d_eval[:, layer_num - 1, :]
                     
                     # Ground truths
-                    y1_test1, y3_test1 = df_test1['y1'].values, df_test1['y3'].values
-                    y1_test2, y3_test2 = df_test2['y1'].values, df_test2['y3'].values
-                    y1_cross, y3_cross = df_cross['y1'].values, df_cross['y3'].values
+                    y1_test1, y2_test1, y3_test1 = df_test1['y1'].values, df_test1['y2'].values, df_test1['y3'].values
+                    y1_test2, y2_test2, y3_test2 = df_test2['y1'].values, df_test2['y2'].values, df_test2['y3'].values
+                    y1_cross, y2_cross, y3_cross = df_cross['y1'].values, df_cross['y2'].values, df_cross['y3'].values
                     
                     predictions_cache[dataset_key][target_name][layer_num] = {
                         'bin_edges': {},
@@ -178,15 +179,14 @@ def main():
                             joblib.dump({'iso': iso}, calib_save_path)
                             
                         else:  # split mode
-                            # 1. 依據模型自己的原始機率分流，絕不使用真實標籤 y1 避免洩漏！
-                            y1_pred_test1 = (p_test1 >= 0.5).astype(int)
-                            mask_0_test1 = (y1_pred_test1 == 0)
-                            mask_1_test1 = (y1_pred_test1 == 1)
+                            # 1. 依據真實標籤 y1 進行分流 (嚴格對齊導師的 y_1_gt 邏輯)
+                            mask_0_test1 = (y1_test1 == 0)
+                            mask_1_test1 = (y1_test1 == 1)
                             
                             iso_0 = IsotonicRegression(out_of_bounds='clip')
                             iso_1 = IsotonicRegression(out_of_bounds='clip')
                             
-                            # 2. 分別訓練：特徵 X 是 pre_cal，目標 Y 必須是 y3_test1！絕對不可把 y1 餵給 Y！
+                            # 2. 分別訓練：特徵 X 是 pre_cal，目標 Y 必須是 y3_test1！
                             if np.sum(mask_0_test1) > 10:
                                 iso_0.fit(pre_cal_test1[mask_0_test1], y3_test1[mask_0_test1])
                             else:
@@ -200,28 +200,29 @@ def main():
                             # 💡 儲存雙軌條件校正模型對
                             joblib.dump({'iso_0': iso_0, 'iso_1': iso_1}, calib_save_path)
                             
-                            # 3. 條件推論函數：未知資料集依據自己的預測分數分流
-                            def predict_split_calibration(prob_raw, score_pre):
+                            # 3. 條件推論函數：未知資料集一律依據它自己的 y1 標籤分流
+                            def predict_split_calibration(score_pre, y1_labels):
                                 prob_post = np.zeros_like(score_pre, dtype=float)
-                                m0 = (prob_raw < 0.5)
-                                m1 = (prob_raw >= 0.5)
+                                m0 = (y1_labels == 0)
+                                m1 = (y1_labels == 1)
                                 if np.sum(m0) > 0:
                                     prob_post[m0] = iso_0.predict(score_pre[m0])
                                 if np.sum(m1) > 0:
                                     prob_post[m1] = iso_1.predict(score_pre[m1])
                                 return prob_post
                                 
-                            p_cal_test1 = predict_split_calibration(p_test1, pre_cal_test1)
-                            p_cal_test2 = predict_split_calibration(p_test2, pre_cal_test2)
-                            p_cal_cross = predict_split_calibration(p_cross, pre_cal_cross)
-                            p_cal_eval = predict_split_calibration(p_eval, pre_cal_eval)
+                            # 產生校正後的機率 (傳入各資料集的 pre_cal 與 y1 標籤)
+                            p_cal_test1 = predict_split_calibration(pre_cal_test1, y1_test1)
+                            p_cal_test2 = predict_split_calibration(pre_cal_test2, y1_test2)
+                            p_cal_cross = predict_split_calibration(pre_cal_cross, y1_cross)
+                            p_cal_eval = predict_split_calibration(pre_cal_eval, y1_eval)
                         
                         # Cache predictions for plotting later
                         splits_info = {
-                            'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'y1': y1_test1, 'y3': y3_test1},
-                            'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'y1': y1_test2, 'y3': y3_test2},
-                            'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'y1': y1_cross, 'y3': y3_cross},
-                            'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'y1': y1_eval, 'y3': y3_eval}
+                            'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'y1': y1_test1, 'y2': y2_test1, 'y3': y3_test1},
+                            'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'y1': y1_test2, 'y2': y2_test2, 'y3': y3_test2},
+                            'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'y1': y1_cross, 'y2': y2_cross, 'y3': y3_cross},
+                            'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'y1': y1_eval, 'y2': y2_eval, 'y3': y3_eval}
                         }
                         
                         predictions_cache[dataset_key][target_name][layer_num]['bin_edges'][model_name] = bin_edges_dict[model_name]

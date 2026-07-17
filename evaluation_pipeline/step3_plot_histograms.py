@@ -18,19 +18,30 @@ def plot_quadrant_histograms(pre_scores, post_scores, y_hat, y_gt, y3_gt, layer_
     fig.suptitle(f"第 {layer_num} 層隱藏狀態 - {model_name} 校正前後分數分佈\n({dataset_title} - {split_name} - 任務: {target_name.upper()})", fontsize=16, fontweight='bold')
     
     # Groups definition: (y_hat, y_gt)
-    if target_name in ['y1', 'y2']:
+    # 根據不同的任務，定義四象限的標題
+    if target_name == 'y1':
+        # Y1 任務：探針預測 Guardrail 的行為
         groups = [
-            ((0, 0), "Group 1: Guardrail Safe (0) | GT Safe (0)", axes[0, 0]),
-            ((0, 1), "Group 2: Guardrail Safe (0) | GT Unsafe (1)", axes[0, 1]),
-            ((1, 0), "Group 3: Guardrail Unsafe (1) | GT Safe (0)", axes[1, 0]),
-            ((1, 1), "Group 4: Guardrail Unsafe (1) | GT Unsafe (1)", axes[1, 1]),
+            ((0, 0), "Group 1: 探針預測 Safe (0) | Guardrail 實際 Safe (0)", axes[0, 0]),
+            ((0, 1), "Group 2: 探針預測 Safe (0) | Guardrail 實際 Unsafe (1)", axes[0, 1]),
+            ((1, 0), "Group 3: 探針預測 Unsafe (1) | Guardrail 實際 Safe (0)", axes[1, 0]),
+            ((1, 1), "Group 4: 探針預測 Unsafe (1) | Guardrail 實際 Unsafe (1)", axes[1, 1]),
         ]
-    else:  # y3
+    elif target_name == 'y2':
+        # Y2 任務：探針預測 Prompt 的真實有害性
         groups = [
-            ((0, 0), "Group 1: Pred Inconsistent (0) | GT Inconsistent (0)", axes[0, 0]),
-            ((0, 1), "Group 2: Pred Inconsistent (0) | GT Consistent (1)", axes[0, 1]),
-            ((1, 0), "Group 3: Pred Consistent (1) | GT Inconsistent (0)", axes[1, 0]),
-            ((1, 1), "Group 4: Pred Consistent (1) | GT Consistent (1)", axes[1, 1]),
+            ((0, 0), "Group 1: 探針預測無害 (0) | Prompt 真實無害 (0)", axes[0, 0]),
+            ((0, 1), "Group 2: 探針預測無害 (0) | Prompt 真實有害 (1)", axes[0, 1]),
+            ((1, 0), "Group 3: 探針預測有害 (1) | Prompt 真實無害 (0)", axes[1, 0]),
+            ((1, 1), "Group 4: 探針預測有害 (1) | Prompt 真實有害 (1)", axes[1, 1]),
+        ]
+    else:  # target_name == 'y3'
+        # Y3 任務：探針預測 Guardrail 是否判斷正確 (一致性)
+        groups = [
+            ((0, 0), "Group 1: 探針預測錯誤 (0) | Guardrail 實際錯誤 (0)", axes[0, 0]),
+            ((0, 1), "Group 2: 探針預測錯誤 (0) | Guardrail 實際正確 (1)", axes[0, 1]),
+            ((1, 0), "Group 3: 探針預測正確 (1) | Guardrail 實際錯誤 (0)", axes[1, 0]),
+            ((1, 1), "Group 4: 探針預測正確 (1) | Guardrail 實際正確 (1)", axes[1, 1]),
         ]
         
     print(f"      [四象限直方圖數據 - 任務: {target_name.upper()} | 模型: {model_name} | 層數: {layer_num} | 評估集: {split_name}]")
@@ -145,9 +156,13 @@ def main():
                             y_hat = (y_prob_pre >= 0.5).astype(int)
                             
                             # 💡 修正內部生成 score_pre 與 y_gt 的邏輯，避免 Y3 任務反轉
-                            if target_name in ['y1', 'y2']:
+                            if target_name == 'y1':
                                 score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
                                 y_gt = y1
+                            elif target_name == 'y2':
+                                y2 = data['y2']
+                                score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
+                                y_gt = y2
                             else:  # y3 任務：嚴格禁止轉換！
                                 score_pre = y_prob_pre 
                                 y_gt = y3

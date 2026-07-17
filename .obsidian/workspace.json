@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "project_report.md",
-                "mode": "source",
+                "file": "LLM 隱藏狀態機率校正與元評估框架.md",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "project_report"
+              "title": "LLM 隱藏狀態機率校正與元評估框架"
             }
           }
         ]
@@ -183,6 +183,8 @@
   },
   "active": "7ad1291f4067af60",
   "lastOpenFiles": [
+    "old_python/run_06_three_versions_adjusted_data.py",
+    "project_report.md",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6/RF_histogram.png",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6/RF_histogram.png",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6/RF_histogram.png",
@@ -193,7 +195,6 @@
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/test1/layer_6/LR_histogram.png",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6/LGB_histogram.png",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6/LGB_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6/LGB_histogram.png",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6",
     "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6",

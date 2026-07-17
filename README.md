@@ -109,27 +109,27 @@ python unified_train.py
     *   `training_log.txt`：完整的訓練與分層評估指標日誌。
     *   `layer_*/`：保存各層 5 大模型的最優權重（`*_best.pkl`）與最終權重（`*_last.pkl`），以及 ROC、Accuracy 和 Learning Curves 曲線。
 
-#### 步驟 3：資料調整與對齊準備
+#### 步驟 3：計算與生成預測分數
 
 ```bash
-python run_06_three_versions_adjusted_data.py
+python -m evaluation_pipeline.step1_generate_scores
 ```
 
-*   **功能**：準備 `test1`、`test2` 及外部評估集。透過資料擴增（Augment）和比例對齊（Align），生成 `augmented_test1.pkl`、`aligned_test1.pkl` 等多個資料版本，作為後續校正評估基礎。
+*   **功能**：針對所有驗證與測試集，讀取模型預測與真實標籤，計算並校正機率分數，將結果快取至 `calibrated_predictions.pkl`。
 
-#### 步驟 4：核心機率校正、Brier 分解與可靠度分析
+#### 步驟 4：繪製指標折線圖與可靠度曲線
 
 ```bash
-python run_07_brier_evaluation.py
+python -m evaluation_pipeline.step2_plot_curves
 ```
 
-*   **功能**：在不同資料分佈上進行 Isotonic Regression 擬合，計算 Brier Score 及 Log Loss，繪製指標隨層數變化折線圖。同時，除了產出原有的可靠度曲線外，新增**依 $y_i$ 真實標籤（$y_i == 1$ 與 $y_i == 0$）分割的 1x5 可靠度對比折線圖 (方案 A)**，保存至全新的 `02_Reliability_Curves_split_y` 目錄下。
+*   **功能**：在不同資料分佈上計算 Brier Score 及 Log Loss，繪製指標隨層數變化折線圖。同時新增**依 $y_i$ 真實標籤（$y_i == 1$ 與 $y_i == 0$）分割的 1x5 可靠度對比折線圖 (方案 A)**，保存至 `02_Reliability_Curves_split_y` 目錄下。
 *   **輸出**：`results/safety_guardrails_evaluation/{dataset_key}/02_Reliability_Curves_split_y/`
 
 #### 步驟 5：預測正確性分組診斷與直方圖分析
 
 ```bash
-python run_08_histogram_analytics.py
+python -m evaluation_pipeline.step3_plot_histograms
 ```
 
 *   **功能**：針對預測正確與預測錯誤之四個象限，統計置信度分數的直方圖分佈並進行 Brier 指標分解。將生成的直方圖儲存至**依特徵層分類（`layer_{layer_num}`）的目錄結構**中，便於各模型在同層的特徵表現進行直觀對比。
@@ -145,9 +145,12 @@ python run_08_histogram_analytics.py
 ├── Async_run_experiment_train.py    # 非同步推論與訓練集隱藏狀態提取
 ├── Async_run_experiment_eval.py     # 非同步推論與評估集隱藏狀態提取
 ├── unified_train.py                 # 統一訓練框架（5大模型 x 6層 x 3任務）
-├── run_06_three_versions_adjusted_data.py # 步驟3：產生經調整後的校正測試集
-├── run_07_brier_evaluation.py       # 步驟4：核心校正評估、Brier 隨層折線圖與 1x5 分割可靠度圖
-├── run_08_histogram_analytics.py    # 步驟5：四象限直方圖（按特徵層分類）與 Brier 分解分析
+├── evaluation_pipeline/             # 獨立的機率校正與圖表生成管線
+│   ├── step1_generate_scores.py     # 步驟3：生成並快取所有任務的預測分數
+│   ├── step2_plot_curves.py         # 步驟4：繪製指標折線圖與可靠度曲線
+│   └── step3_plot_histograms.py     # 步驟5：繪製四象限直方圖與 Brier 分解
+├── old_python/                      # 舊版與廢棄腳本
+│   └── run_06_three_versions_adjusted_data.py # 已廢棄的資料準備腳本
 ├── utils_calibration.py             # 校正輔助工具（含中文字型、Binning、Brier 分解與 1x5 繪圖）
 ├── wrapper_models.py                # 正確性分類器包裝器 (Correctness Wrapper)
 ├── check_data.py                    # 數據格式檢查與分佈統計工具
