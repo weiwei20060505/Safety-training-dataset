@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import joblib
 from sklearn.calibration import IsotonicRegression
+from imblearn.under_sampling import RandomUnderSampler
 
 # Add parent directory to sys.path to import core modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -168,8 +169,15 @@ def main():
                         if mode == "baseline":
                             # Fit single unified Isotonic Regression
                             iso = IsotonicRegression(out_of_bounds='clip')
-                            iso.fit(pre_cal_test1, y3_test1)
                             
+                            # 只要是訓練校正器，就強制做 1:1 欠採樣
+                            sampler = RandomUnderSampler(random_state=42)
+                            pre_cal_test1_resampled, y3_test1_resampled = sampler.fit_resample(pre_cal_test1.reshape(-1, 1), y3_test1)
+                            
+                            # 用 1:1 的資料訓練校正器
+                            iso.fit(pre_cal_test1_resampled.ravel(), y3_test1_resampled)
+                            
+                            # 但是！預測與畫圖時，維持原始所有資料的真實比例！
                             p_cal_test1 = iso.predict(pre_cal_test1)
                             p_cal_test2 = iso.predict(pre_cal_test2)
                             p_cal_cross = iso.predict(pre_cal_cross)
@@ -187,13 +195,22 @@ def main():
                             iso_1 = IsotonicRegression(out_of_bounds='clip')
                             
                             # 2. 分別訓練：特徵 X 是 pre_cal，目標 Y 必須是 y3_test1！
+                            sampler = RandomUnderSampler(random_state=42)
                             if np.sum(mask_0_test1) > 10:
-                                iso_0.fit(pre_cal_test1[mask_0_test1], y3_test1[mask_0_test1])
+                                try:
+                                    X_res_0, y_res_0 = sampler.fit_resample(pre_cal_test1[mask_0_test1].reshape(-1, 1), y3_test1[mask_0_test1])
+                                    iso_0.fit(X_res_0.ravel(), y_res_0)
+                                except ValueError:
+                                    iso_0.fit(pre_cal_test1[mask_0_test1], y3_test1[mask_0_test1])
                             else:
                                 iso_0.fit([0.0, 1.0], [0.0, 1.0])
                                 
                             if np.sum(mask_1_test1) > 10:
-                                iso_1.fit(pre_cal_test1[mask_1_test1], y3_test1[mask_1_test1])
+                                try:
+                                    X_res_1, y_res_1 = sampler.fit_resample(pre_cal_test1[mask_1_test1].reshape(-1, 1), y3_test1[mask_1_test1])
+                                    iso_1.fit(X_res_1.ravel(), y_res_1)
+                                except ValueError:
+                                    iso_1.fit(pre_cal_test1[mask_1_test1], y3_test1[mask_1_test1])
                             else:
                                 iso_1.fit([0.0, 1.0], [0.0, 1.0])
                                 
@@ -219,10 +236,10 @@ def main():
                         
                         # Cache predictions for plotting later
                         splits_info = {
-                            'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'y1': y1_test1, 'y2': y2_test1, 'y3': y3_test1},
-                            'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'y1': y1_test2, 'y2': y2_test2, 'y3': y3_test2},
-                            'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'y1': y1_cross, 'y2': y2_cross, 'y3': y3_cross},
-                            'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'y1': y1_eval, 'y2': y2_eval, 'y3': y3_eval}
+                            'test1': {'y_true': y3_test1, 'y_prob': p_cal_test1, 'y_prob_pre': p_test1, 'score_pre': pre_cal_test1, 'y1': y1_test1, 'y2': y2_test1, 'y3': y3_test1},
+                            'test2': {'y_true': y3_test2, 'y_prob': p_cal_test2, 'y_prob_pre': p_test2, 'score_pre': pre_cal_test2, 'y1': y1_test2, 'y2': y2_test2, 'y3': y3_test2},
+                            'test2_cross': {'y_true': y3_cross, 'y_prob': p_cal_cross, 'y_prob_pre': p_cross, 'score_pre': pre_cal_cross, 'y1': y1_cross, 'y2': y2_cross, 'y3': y3_cross},
+                            'eval': {'y_true': y3_eval, 'y_prob': p_cal_eval, 'y_prob_pre': p_eval, 'score_pre': pre_cal_eval, 'y1': y1_eval, 'y2': y2_eval, 'y3': y3_eval}
                         }
                         
                         predictions_cache[dataset_key][target_name][layer_num]['bin_edges'][model_name] = bin_edges_dict[model_name]

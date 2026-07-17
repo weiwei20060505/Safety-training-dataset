@@ -13,41 +13,29 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import utils_calibration
 
-def plot_quadrant_histograms(pre_scores, post_scores, y_hat, y_gt, y3_gt, layer_num, model_name, dataset_title, split_name, target_name, save_path):
+def plot_quadrant_histograms(pre_scores, post_scores, y1, y2, y3_gt, layer_num, model_name, dataset_title, split_name, target_name, save_path):
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(f"第 {layer_num} 層隱藏狀態 - {model_name} 校正前後分數分佈\n({dataset_title} - {split_name} - 任務: {target_name.upper()})", fontsize=16, fontweight='bold')
     
-    # Groups definition: (y_hat, y_gt)
-    # 根據不同的任務，定義四象限的標題
-    if target_name == 'y1':
-        # Y1 任務：探針預測 Guardrail 的行為
-        groups = [
-            ((0, 0), "Group 1: 探針預測 Safe (0) | Guardrail 實際 Safe (0)", axes[0, 0]),
-            ((0, 1), "Group 2: 探針預測 Safe (0) | Guardrail 實際 Unsafe (1)", axes[0, 1]),
-            ((1, 0), "Group 3: 探針預測 Unsafe (1) | Guardrail 實際 Safe (0)", axes[1, 0]),
-            ((1, 1), "Group 4: 探針預測 Unsafe (1) | Guardrail 實際 Unsafe (1)", axes[1, 1]),
-        ]
-    elif target_name == 'y2':
-        # Y2 任務：探針預測 Prompt 的真實有害性
-        groups = [
-            ((0, 0), "Group 1: 探針預測無害 (0) | Prompt 真實無害 (0)", axes[0, 0]),
-            ((0, 1), "Group 2: 探針預測無害 (0) | Prompt 真實有害 (1)", axes[0, 1]),
-            ((1, 0), "Group 3: 探針預測有害 (1) | Prompt 真實無害 (0)", axes[1, 0]),
-            ((1, 1), "Group 4: 探針預測有害 (1) | Prompt 真實有害 (1)", axes[1, 1]),
-        ]
-    else:  # target_name == 'y3'
-        # Y3 任務：探針預測 Guardrail 是否判斷正確 (一致性)
-        groups = [
-            ((0, 0), "Group 1: 探針預測錯誤 (0) | Guardrail 實際錯誤 (0)", axes[0, 0]),
-            ((0, 1), "Group 2: 探針預測錯誤 (0) | Guardrail 實際正確 (1)", axes[0, 1]),
-            ((1, 0), "Group 3: 探針預測正確 (1) | Guardrail 實際錯誤 (0)", axes[1, 0]),
-            ((1, 1), "Group 4: 探針預測正確 (1) | Guardrail 實際正確 (1)", axes[1, 1]),
-        ]
+    # Groups definition: 直接用 y1 (Guardrail) 和 y2 (Prompt 真實有害性) 切分四個情境
+    groups = [
+        ((0, 0), "Group 1: Guardrail 放行 (0) | Prompt 真實無害 (0)\n[正常互動]", axes[0, 0]),
+        ((0, 1), "Group 2: Guardrail 放行 (0) | Prompt 真實有害 (1)\n[漏報 / 攻擊成功]", axes[0, 1]),
+        ((1, 0), "Group 3: Guardrail 攔截 (1) | Prompt 真實無害 (0)\n[誤報 / 過度防禦]", axes[1, 0]),
+        ((1, 1), "Group 4: Guardrail 攔截 (1) | Prompt 真實有害 (1)\n[防禦成功]", axes[1, 1]),
+    ]
         
     print(f"      [四象限直方圖數據 - 任務: {target_name.upper()} | 模型: {model_name} | 層數: {layer_num} | 評估集: {split_name}]")
     
-    for (hat_val, gt_val), title, ax in groups:
-        mask = (y_hat == hat_val) & (y_gt == gt_val)
+    # 注意：你需要把 y1 和 y2 也當作參數傳進這個函數 (見下方說明)
+    for (val_1, val_2), title, ax in groups:
+        # 如果是 Y1 或 Y2 任務，我們用 Guardrail(y1) 和 真實有害性(y2) 來切分四象限
+        if target_name in ['y1', 'y2']:
+            mask = (y1 == val_1) & (y2 == val_2)
+        else:
+            # Y3 任務可以看你的設計，假設也是用 y1 和 y2 切分，看看一致性探針在四種情況的分數
+            mask = (y1 == val_1) & (y2 == val_2) 
+            
         pre = pre_scores[mask]
         post = post_scores[mask]
         
@@ -148,31 +136,26 @@ def main():
                                 
                             # Reconstruct predictions and variables
                             y1 = data['y1']
+                            y2 = data['y2']
                             y3 = data['y3']
                             y_prob_pre = data['y_prob_pre']
                             y_prob_post = data['y_prob']
                             
-                            # Reconstruct y_hat (pre-cal prediction thresholded at 0.5)
-                            y_hat = (y_prob_pre >= 0.5).astype(int)
-                            
-                            # 💡 修正內部生成 score_pre 與 y_gt 的邏輯，避免 Y3 任務反轉
-                            if target_name == 'y1':
-                                score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
-                                y_gt = y1
-                            elif target_name == 'y2':
-                                y2 = data['y2']
-                                score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
-                                y_gt = y2
-                            else:  # y3 任務：嚴格禁止轉換！
-                                score_pre = y_prob_pre 
-                                y_gt = y3
+                            if 'score_pre' in data:
+                                score_pre = data['score_pre']
+                            else:
+                                # 💡 修正內部生成 score_pre 與 y_gt 的邏輯，避免 Y3 任務反轉 (向後相容)
+                                if target_name in ['y1', 'y2']:
+                                    score_pre = np.where(y1 == 1, y_prob_pre, 1.0 - y_prob_pre)
+                                else:  # y3 任務：嚴格禁止轉換！
+                                    score_pre = y_prob_pre
                                 
                             # 💡 [陷阱三解決策略] 建立對稱的輸出路徑與標題
                             save_path = f"{base_dir}/{dataset_key}/{mode}/03_Quadrant_Histograms/{target_name}/{eval_set_name}/layer_{layer_num}/{model_name}_histogram.png"
                             title_text = f"{dataset_title} {mode_titles[mode]}"
                             
                             plot_quadrant_histograms(
-                                score_pre, y_prob_post, y_hat, y_gt, y3,
+                                score_pre, y_prob_post, y1, y2, y3,
                                 layer_num, model_name, title_text, eval_set_name.upper(), target_name, save_path
                             )
                             print(f"  - 輸出 {model_name} 直方圖完成 ({eval_set_name} | {mode.upper()})")
