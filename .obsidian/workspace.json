@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "LLM 隱藏狀態機率校正與元評估框架.md",
-                "mode": "preview",
+                "file": "LLM 隱藏狀態機率校正與元評估框架 1 1.md",
+                "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "LLM 隱藏狀態機率校正與元評估框架"
+              "title": "LLM 隱藏狀態機率校正與元評估框架 1 1"
             }
           }
         ]
@@ -183,31 +183,33 @@
   },
   "active": "7ad1291f4067af60",
   "lastOpenFiles": [
-    "old_python/run_06_three_versions_adjusted_data.py",
-    "project_report.md",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6/RF_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6/RF_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6/RF_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/test1/layer_6/RF_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6/LR_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6/LR_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6/LR_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/test1/layer_6/LR_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6/LGB_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6/LGB_histogram.png",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_6",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_6",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_6",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/test1/layer_6",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_5",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_5",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/aligned_test2/layer_5",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/test1/layer_5",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/eval/layer_4",
-    "results/safety_guardrails_evaluation/data_align/03_Quadrant_Histograms/y3/augmented_test2/layer_4",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/RF_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/RF_aligned_test2_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/LR_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/LR_aligned_test2_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/LGB_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/LGB_aligned_test2_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/MLP_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/MLP_aligned_test2_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/SGD_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/SGD_aligned_test2_dual_y_2x3_grid.png",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y2/aligned_test2/RF_dual_y_2x3_grid.png",
+    "generate_2x3_brier_grids.py",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/eval/layer_6/single_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/eval/layer_6/dual_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/eval/layer_6",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/augmented_test2/layer_6/single_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/augmented_test2/layer_6/dual_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/augmented_test2/layer_6",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/layer_6/single_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/layer_6/dual_y",
+    "results/safety_guardrails_evaluation/data_align/split/04_Brier_Components/y3/aligned_test2/layer_6",
     "LLM 隱藏狀態機率校正與元評估框架 1.md",
+    "LLM 隱藏狀態機率校正與元評估框架 1 1.md",
     "LLM 隱藏狀態機率校正與元評估框架.md",
-    "EXECUTION_SUMMARY.md",
-    "🗺️專案階段狀態總結.md"
+    "🗺️專案階段狀態總結.md",
+    "project_report.md",
+    "README.md",
+    "EXECUTION_SUMMARY.md"
   ]
 }

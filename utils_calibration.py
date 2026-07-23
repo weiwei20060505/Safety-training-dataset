@@ -458,3 +458,135 @@ def plot_bin_weights_bar(models_data, bin_edges_dict, title, save_path):
     plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close()
 
+
+def compute_dist_stats(y_true, scores):
+    """計算依照 y_true (0 vs 1) 分群之預測機率統計量與雙峰分離度指標"""
+    from scipy.stats import ks_2samp
+    y_true = np.array(y_true)
+    scores = np.array(scores)
+    
+    mask_0 = (y_true == 0)
+    mask_1 = (y_true == 1)
+    s0 = scores[mask_0]
+    s1 = scores[mask_1]
+    
+    n0, n1 = len(s0), len(s1)
+    m0, std0 = (np.mean(s0), np.std(s0)) if n0 > 0 else (0.0, 0.0)
+    m1, std1 = (np.mean(s1), np.std(s1)) if n1 > 0 else (0.0, 0.0)
+    med0 = np.median(s0) if n0 > 0 else 0.0
+    med1 = np.median(s1) if n1 > 0 else 0.0
+    q25_0, q75_0 = (np.percentile(s0, 25), np.percentile(s0, 75)) if n0 > 0 else (0.0, 0.0)
+    q25_1, q75_1 = (np.percentile(s1, 25), np.percentile(s1, 75)) if n1 > 0 else (0.0, 0.0)
+    min0, max0 = (np.min(s0), np.max(s0)) if n0 > 0 else (0.0, 0.0)
+    min1, max1 = (np.min(s1), np.max(s1)) if n1 > 0 else (0.0, 0.0)
+    
+    delta_mu = m1 - m0
+    pooled_std = np.sqrt((std0**2 + std1**2) / 2.0) if (std0**2 + std1**2) > 0 else 1e-9
+    cohen_d = delta_mu / pooled_std
+    
+    ks_stat, ks_pval = (ks_2samp(s0, s1).statistic, ks_2samp(s0, s1).pvalue) if (n0 > 0 and n1 > 0) else (0.0, 1.0)
+    
+    return {
+        'n0': n0, 'm0': m0, 'std0': std0, 'med0': med0, 'q25_0': q25_0, 'q75_0': q75_0, 'min0': min0, 'max0': max0,
+        'n1': n1, 'm1': m1, 'std1': std1, 'med1': med1, 'q25_1': q25_1, 'q75_1': q75_1, 'min1': min1, 'max1': max1,
+        'delta_mu': delta_mu, 'cohen_d': cohen_d, 'ks_stat': ks_stat, 'ks_pval': ks_pval
+    }
+
+
+def print_detailed_bimodal_log(header_title, y_true, score_pre, score_post):
+    """列印極詳細之雙峰分佈文字日誌，確保不看圖即可完整獲得統計資訊"""
+    stats_pre = compute_dist_stats(y_true, score_pre)
+    stats_post = compute_dist_stats(y_true, score_post)
+    
+    print("\n" + "="*80)
+    print(f"【詳細數值日誌】{header_title}")
+    print("="*80)
+    print(f"  [樣本總數]: N_Total = {len(y_true)} | Class 0 (負例/無害) N0 = {stats_pre['n0']} | Class 1 (正例/有害) N1 = {stats_pre['n1']}")
+    print("-"*80)
+    
+    print("  ► 校正前 (Pre-calibration Raw Scores):")
+    print(f"     • Class 0 (Y=0): 平均 = {stats_pre['m0']:.4f} | 標準差 = {stats_pre['std0']:.4f} | 中位數 = {stats_pre['med0']:.4f} | 四分位 [Q1={stats_pre['q25_0']:.4f}, Q3={stats_pre['q75_0']:.4f}] | 範圍 [{stats_pre['min0']:.4f}, {stats_pre['max0']:.4f}]")
+    print(f"     • Class 1 (Y=1): 平均 = {stats_pre['m1']:.4f} | 標準差 = {stats_pre['std1']:.4f} | 中位數 = {stats_pre['med1']:.4f} | 四分位 [Q1={stats_pre['q25_1']:.4f}, Q3={stats_pre['q75_1']:.4f}] | 範圍 [{stats_pre['min1']:.4f}, {stats_pre['max1']:.4f}]")
+    print(f"     • 雙峰分離度: 平均差 (μ1-μ0) = {stats_pre['delta_mu']:.4f} | Cohen's d = {stats_pre['cohen_d']:.4f} | KS檢定量 = {stats_pre['ks_stat']:.4f} (p-val={stats_pre['ks_pval']:.2e})")
+    
+    print("-"*80)
+    print("  ► 校正後 (Post-calibration Isotonic Scores):")
+    print(f"     • Class 0 (Y=0): 平均 = {stats_post['m0']:.4f} | 標準差 = {stats_post['std0']:.4f} | 中位數 = {stats_post['med0']:.4f} | 四分位 [Q1={stats_post['q25_0']:.4f}, Q3={stats_post['q75_0']:.4f}] | 範圍 [{stats_post['min0']:.4f}, {stats_post['max0']:.4f}]")
+    print(f"     • Class 1 (Y=1): 平均 = {stats_post['m1']:.4f} | 標準差 = {stats_post['std1']:.4f} | 中位數 = {stats_post['med1']:.4f} | 四分位 [Q1={stats_post['q25_1']:.4f}, Q3={stats_post['q75_1']:.4f}] | 範圍 [{stats_post['min1']:.4f}, {stats_post['max1']:.4f}]")
+    print(f"     • 雙峰分離度: 平均差 (μ1-μ0) = {stats_post['delta_mu']:.4f} | Cohen's d = {stats_post['cohen_d']:.4f} | KS檢定量 = {stats_post['ks_stat']:.4f} (p-val={stats_post['ks_pval']:.2e})")
+    print("="*80 + "\n")
+
+
+def plot_bimodal_kde_histogram(y_true, score_pre, score_post, title, save_path):
+    """
+    繪製預測機率依照真實標籤 (Y_true=0 vs Y_true=1) 分群的 KDE/Histogram 雙峰機率分佈圖。
+    繪製 1x2 並列子图 (Left: 校正前 Raw, Right: 校正後 Post-cal)。
+    """
+    from scipy.stats import gaussian_kde
+    setup_chinese_font()
+    
+    y_true = np.array(y_true)
+    score_pre = np.array(score_pre)
+    score_post = np.array(score_post)
+    
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig.suptitle(title, fontsize=16, fontweight='bold')
+    
+    x_grid = np.linspace(0.0, 1.0, 200)
+    
+    plots_config = [
+        ("校正前分數雙峰圖 (Raw Score)", score_pre, axes[0]),
+        ("校正後分數雙峰圖 (Isotonic)", score_post, axes[1])
+    ]
+    
+    for sub_title, scores, ax in plots_config:
+        stats = compute_dist_stats(y_true, scores)
+        
+        mask_0 = (y_true == 0)
+        mask_1 = (y_true == 1)
+        s0 = scores[mask_0]
+        s1 = scores[mask_1]
+        
+        # Plot Histograms
+        if len(s0) > 0:
+            ax.hist(s0, bins=30, range=(0.0, 1.0), density=True, color='#2b5c8f', alpha=0.35, label=f'Y_true=0 (N={len(s0)})')
+        if len(s1) > 0:
+            ax.hist(s1, bins=30, range=(0.0, 1.0), density=True, color='#d95f02', alpha=0.35, label=f'Y_true=1 (N={len(s1)})')
+            
+        # Plot KDE Curves
+        if len(s0) > 1 and np.std(s0) > 1e-7:
+            try:
+                kde0 = gaussian_kde(s0, bw_method='scott')
+                ax.plot(x_grid, kde0(x_grid), color='#1b3b5f', linewidth=2.5, label='KDE (Y_true=0)')
+            except Exception: pass
+            
+        if len(s1) > 1 and np.std(s1) > 1e-7:
+            try:
+                kde1 = gaussian_kde(s1, bw_method='scott')
+                ax.plot(x_grid, kde1(x_grid), color='#b33e00', linewidth=2.5, label='KDE (Y_true=1)')
+            except Exception: pass
+            
+        # Stats annotation box
+        textbox = (f"Y=0: μ={stats['m0']:.3f}, σ={stats['std0']:.3f}\n"
+                   f"Y=1: μ={stats['m1']:.3f}, σ={stats['std1']:.3f}\n"
+                   f"Δμ: {stats['delta_mu']:.3f} | Cohen's d: {stats['cohen_d']:.3f}\n"
+                   f"KS-stat: {stats['ks_stat']:.3f}")
+        ax.text(0.5, 0.95, textbox, transform=ax.transAxes, fontsize=10, fontweight='bold',
+                verticalalignment='top', horizontalalignment='center',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.85, edgecolor='gray'))
+                
+        ax.set_title(sub_title, fontsize=13, fontweight='bold')
+        ax.set_xlabel("預測機率 (Predicted Probability P(Y=1))", fontsize=11)
+        ax.set_ylabel("機率密度 (Density)", fontsize=11)
+        ax.set_xlim([-0.05, 1.05])
+        ax.grid(True, linestyle='--', alpha=0.3)
+        ax.legend(loc='upper right', fontsize=9)
+        
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.88)
+    
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=200, bbox_inches='tight')
+    plt.close()
+
+

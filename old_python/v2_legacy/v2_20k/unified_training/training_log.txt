@@ -1,0 +1,66 @@
+============================================================
+v2_20k 機器學習模型訓練框架
+============================================================
+[1] 讀取 Train (12k), Val (4k), Test1 (2k) 資料...
+
+--- [Layer 6] 訓練 Model: SGD | Target: Y1 ---
+  [SGD] 訓練 y1 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\sgd_y1_best.pkl
+
+--- [Layer 6] 訓練 Model: SGD | Target: Y2 ---
+  [SGD] 訓練 y2 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\sgd_y2_best.pkl
+
+--- [Layer 6] 訓練 Model: SGD | Target: Y3 ---
+  [SGD] 訓練 y3 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\sgd_y3_best.pkl
+
+--- [Layer 6] 訓練 Model: MLP | Target: Y1 ---
+  [MLP] 訓練 y1 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\mlp_y1_best.pkl
+
+--- [Layer 6] 訓練 Model: MLP | Target: Y2 ---
+  [MLP] 訓練 y2 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\mlp_y2_best.pkl
+
+--- [Layer 6] 訓練 Model: MLP | Target: Y3 ---
+  [MLP] 訓練 y3 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\mlp_y3_best.pkl
+
+--- [Layer 6] 訓練 Model: LGB | Target: Y1 ---
+  [LGB] 訓練 y1 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lgb_y1_best.pkl
+
+--- [Layer 6] 訓練 Model: LGB | Target: Y2 ---
+  [LGB] 訓練 y2 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lgb_y2_best.pkl
+
+--- [Layer 6] 訓練 Model: LGB | Target: Y3 ---
+  [LGB] 訓練 y3 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lgb_y3_best.pkl
+
+--- [Layer 6] 訓練 Model: LR | Target: Y1 ---
+  [LR] 訓練 y1 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lr_y1_best.pkl
+
+--- [Layer 6] 訓練 Model: LR | Target: Y2 ---
+  [LR] 訓練 y2 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lr_y2_best.pkl
+
+--- [Layer 6] 訓練 Model: LR | Target: Y3 ---
+  [LR] 訓練 y3 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\lr_y3_best.pkl
+
+--- [Layer 6] 訓練 Model: RF | Target: Y1 ---
+  [RF] 訓練 y1 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\rf_y1_best.pkl
+
+--- [Layer 6] 訓練 Model: RF | Target: Y2 ---
+  [RF] 訓練 y2 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\rf_y2_best.pkl
+
+--- [Layer 6] 訓練 Model: RF | Target: Y3 ---
+  [RF] 訓練 y3 模型 (v2_20k)...
+  └─ 模型已儲存至: models/v2_20k\layer_6\rf_y3_best.pkl
+
+所有指定模型訓練完成！
