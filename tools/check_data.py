@@ -139,7 +139,7 @@ def check_file(file_name):
     # 設定 Log 檔案路徑
     log_dir = "results"
     os.makedirs(log_dir, exist_ok=True)
-    log_name = f"check_{os.path.splitext(file_name)[0]}.log"
+    log_name = f"check_{os.path.splitext(os.path.basename(file_name))[0]}.log"
     log_path = os.path.join(log_dir, log_name)
 
     print(f"\n==========================================")
@@ -255,13 +255,11 @@ def check_file(file_name):
 
 if __name__ == "__main__":
     files_to_check = [
-       # "experiment_results_train_10000.pkl",
-       # "experiment_results_train.pkl",
-        #"experiment_results_eval.pkl",
-        "augmented_test1.pkl",
-        "augmented_test2.pkl",
-        "aligned_test1.pkl",
-        "aligned_test2.pkl"
+        "data/experiment_results_train_10000.pkl",
+        "data/experiment_results_train.pkl",
+        "data/experiment_results_eval.pkl",
+        "data/test1.pkl",
+        "data/test2.pkl",
     ]
     
     for file_name in files_to_check:

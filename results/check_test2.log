@@ -1,0 +1,194 @@
+正在讀取實驗資料: data/test2.pkl...
+此檔案格式為 dict，包含多個子任務資料集：['y1', 'y2', 'y3']
+
+>>>>>>>> 展開子任務: y1 <<<<<<<<
+
+--- [y1] 總共讀取了 10000 筆資料 ---
+
+--- [y1] 特徵矩陣 X 的資訊 ---
+X 的維度 (Shape): (10000, 6, 1024)
+這代表我們有 10000 筆樣本，每個樣本特徵結構為 6x1024 (如：6 層 x 1024 維)。
+
+--- [y1] 目標變數 y1 (Data Type) 的分佈 ---
+data_type
+adversarial_harmful    3272
+adversarial_benign     3163
+vanilla_benign         1908
+vanilla_harmful        1657
+Name: count, dtype: int64
+
+--- [y1] 目標變數 y2 (Model Reply) 的分佈 ---
+model_reply
+UNSAFE    6480
+SAFE      3520
+Name: count, dtype: int64
+
+========================================
+--- [y1] 模型預測與真實標籤的對應關係分析 ---
+========================================
+
+📊 【y1 (Overall)】
+   - 總筆數: 10000
+   - 預測正確數: 7671
+   - 預測錯誤數: 2329
+   - 分類準確度 (Accuracy): 76.71%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE     總計
+label                           
+benign       3131    1940   5071
+harmful       389    4540   4929
+總計           3520    6480  10000
+
+📊 【y1 (Adversarial 對抗樣本)】
+   - 總筆數: 6435
+   - 預測正確數: 4788
+   - 預測錯誤數: 1647
+   - 分類準確度 (Accuracy): 74.41%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1676    1487  3163
+harmful       160    3112  3272
+總計           1836    4599  6435
+
+📊 【y1 (Vanilla 原始樣本)】
+   - 總筆數: 3565
+   - 預測正確數: 2883
+   - 預測錯誤數: 682
+   - 分類準確度 (Accuracy): 80.87%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1455     453  1908
+harmful       229    1428  1657
+總計           1684    1881  3565
+
+📌 提示： [y1] 本檔案為評估/測試資料，不進行 Train/Val/Test 分割分析。
+
+>>>>>>>> 展開子任務: y2 <<<<<<<<
+
+--- [y2] 總共讀取了 10000 筆資料 ---
+
+--- [y2] 特徵矩陣 X 的資訊 ---
+X 的維度 (Shape): (10000, 6, 1024)
+這代表我們有 10000 筆樣本，每個樣本特徵結構為 6x1024 (如：6 層 x 1024 維)。
+
+--- [y2] 目標變數 y1 (Data Type) 的分佈 ---
+data_type
+adversarial_harmful    3298
+adversarial_benign     3122
+vanilla_benign         1938
+vanilla_harmful        1642
+Name: count, dtype: int64
+
+--- [y2] 目標變數 y2 (Model Reply) 的分佈 ---
+model_reply
+UNSAFE    6315
+SAFE      3685
+Name: count, dtype: int64
+
+========================================
+--- [y2] 模型預測與真實標籤的對應關係分析 ---
+========================================
+
+📊 【y2 (Overall)】
+   - 總筆數: 10000
+   - 預測正確數: 7731
+   - 預測錯誤數: 2269
+   - 分類準確度 (Accuracy): 77.31%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE     總計
+label                           
+benign       3238    1822   5060
+harmful       447    4493   4940
+總計           3685    6315  10000
+
+📊 【y2 (Adversarial 對抗樣本)】
+   - 總筆數: 6420
+   - 預測正確數: 4854
+   - 預測錯誤數: 1566
+   - 分類準確度 (Accuracy): 75.61%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1744    1378  3122
+harmful       188    3110  3298
+總計           1932    4488  6420
+
+📊 【y2 (Vanilla 原始樣本)】
+   - 總筆數: 3580
+   - 預測正確數: 2877
+   - 預測錯誤數: 703
+   - 分類準確度 (Accuracy): 80.36%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1494     444  1938
+harmful       259    1383  1642
+總計           1753    1827  3580
+
+📌 提示： [y2] 本檔案為評估/測試資料，不進行 Train/Val/Test 分割分析。
+
+>>>>>>>> 展開子任務: y3 <<<<<<<<
+
+--- [y3] 總共讀取了 10000 筆資料 ---
+
+--- [y3] 特徵矩陣 X 的資訊 ---
+X 的維度 (Shape): (10000, 6, 1024)
+這代表我們有 10000 筆樣本，每個樣本特徵結構為 6x1024 (如：6 層 x 1024 維)。
+
+--- [y3] 目標變數 y1 (Data Type) 的分佈 ---
+data_type
+adversarial_harmful    3255
+adversarial_benign     3166
+vanilla_benign         1947
+vanilla_harmful        1632
+Name: count, dtype: int64
+
+--- [y3] 目標變數 y2 (Model Reply) 的分佈 ---
+model_reply
+UNSAFE    6359
+SAFE      3641
+Name: count, dtype: int64
+
+========================================
+--- [y3] 模型預測與真實標籤的對應關係分析 ---
+========================================
+
+📊 【y3 (Overall)】
+   - 總筆數: 10000
+   - 預測正確數: 7770
+   - 預測錯誤數: 2230
+   - 分類準確度 (Accuracy): 77.70%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE     總計
+label                           
+benign       3262    1851   5113
+harmful       379    4508   4887
+總計           3641    6359  10000
+
+📊 【y3 (Adversarial 對抗樣本)】
+   - 總筆數: 6421
+   - 預測正確數: 4832
+   - 預測錯誤數: 1589
+   - 分類準確度 (Accuracy): 75.25%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1749    1417  3166
+harmful       172    3083  3255
+總計           1921    4500  6421
+
+📊 【y3 (Vanilla 原始樣本)】
+   - 總筆數: 3579
+   - 預測正確數: 2938
+   - 預測錯誤數: 641
+   - 分類準確度 (Accuracy): 82.09%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign       1513     434  1947
+harmful       207    1425  1632
+總計           1720    1859  3579
+
+📌 提示： [y3] 本檔案為評估/測試資料，不進行 Train/Val/Test 分割分析。

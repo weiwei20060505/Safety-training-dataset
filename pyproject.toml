@@ -3,7 +3,7 @@ name = "safety-training-dataset"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "datasets>=5.0.0",
     "lightgbm>=4.6.0",

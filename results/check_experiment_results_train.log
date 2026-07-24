@@ -1,0 +1,205 @@
+正在讀取實驗資料: data/experiment_results_train.pkl...
+
+--- 總共讀取了 84999 筆資料 ---
+
+--- 特徵矩陣 X 的資訊 ---
+X 的維度 (Shape): (84999, 6, 1024)
+這代表我們有 84999 筆樣本，每個樣本特徵結構為 6x1024 (如：6 層 x 1024 維)。
+
+--- 目標變數 y1 (Data Type) 的分佈 ---
+data_type
+adversarial_harmful    28028
+adversarial_benign     26521
+vanilla_benign         16648
+vanilla_harmful        13802
+Name: count, dtype: int64
+
+--- 目標變數 y2 (Model Reply) 的分佈 ---
+model_reply
+UNSAFE    54241
+SAFE      30758
+Name: count, dtype: int64
+
+========================================
+--- 模型預測與真實標籤的對應關係分析 ---
+========================================
+
+📊 【合併資料 (Overall)】
+   - 總筆數: 84999
+   - 預測正確數: 65430
+   - 預測錯誤數: 19569
+   - 分類準確度 (Accuracy): 76.98%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply   SAFE  UNSAFE     總計
+label                            
+benign       27179   15990  43169
+harmful       3579   38251  41830
+總計           30758   54241  84999
+
+📊 【合併資料 (Adversarial 對抗樣本)】
+   - 總筆數: 54549
+   - 預測正確數: 40876
+   - 預測錯誤數: 13673
+   - 分類準確度 (Accuracy): 74.93%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply   SAFE  UNSAFE     總計
+label                            
+benign       14354   12167  26521
+harmful       1506   26522  28028
+總計           15860   38689  54549
+
+📊 【合併資料 (Vanilla 原始樣本)】
+   - 總筆數: 30450
+   - 預測正確數: 24554
+   - 預測錯誤數: 5896
+   - 分類準確度 (Accuracy): 80.64%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply   SAFE  UNSAFE     總計
+label                            
+benign       12825    3823  16648
+harmful       2073   11729  13802
+總計           14898   15552  30450
+
+============================================================
+--- 基於 目標變數 y1 (Model Reply Safety) 進行分層分割的 Train/Val/Test1/Test2 分布 ---
+============================================================
+
+📌 【Train (60%)】 - 總筆數: 50999
+   - data_type 分布:
+     * adversarial_harmful: 16825 筆 (32.99%)
+     * adversarial_benign: 15838 筆 (31.06%)
+     * vanilla_benign: 10064 筆 (19.73%)
+     * vanilla_harmful: 8272 筆 (16.22%)
+   - model_reply 分布:
+     * UNSAFE: 32545 筆 (63.81%)
+     * SAFE: 18454 筆 (36.19%)
+   - LLM 分類準確度 (Accuracy): 77.06% (正確: 39299/50999)
+
+📌 【Val (20%)】 - 總筆數: 17000
+   - data_type 分布:
+     * adversarial_harmful: 5649 筆 (33.23%)
+     * adversarial_benign: 5240 筆 (30.82%)
+     * vanilla_benign: 3373 筆 (19.84%)
+     * vanilla_harmful: 2738 筆 (16.11%)
+   - model_reply 分布:
+     * UNSAFE: 10848 筆 (63.81%)
+     * SAFE: 6152 筆 (36.19%)
+   - LLM 分類準確度 (Accuracy): 77.03% (正確: 13095/17000)
+
+📌 【Test1 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2779 筆 (32.69%)
+     * adversarial_benign: 2770 筆 (32.59%)
+     * vanilla_benign: 1587 筆 (18.67%)
+     * vanilla_harmful: 1364 筆 (16.05%)
+   - model_reply 分布:
+     * UNSAFE: 5414 筆 (63.69%)
+     * SAFE: 3086 筆 (36.31%)
+   - LLM 分類準確度 (Accuracy): 76.62% (正確: 6513/8500)
+
+📌 【Test2 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2775 筆 (32.65%)
+     * adversarial_benign: 2673 筆 (31.45%)
+     * vanilla_benign: 1624 筆 (19.11%)
+     * vanilla_harmful: 1428 筆 (16.80%)
+   - model_reply 分布:
+     * UNSAFE: 5434 筆 (63.93%)
+     * SAFE: 3066 筆 (36.07%)
+   - LLM 分類準確度 (Accuracy): 76.74% (正確: 6523/8500)
+
+============================================================
+--- 基於 目標變數 y2 (Prompt Harmfulness) 進行分層分割的 Train/Val/Test1/Test2 分布 ---
+============================================================
+
+📌 【Train (60%)】 - 總筆數: 50999
+   - data_type 分布:
+     * adversarial_harmful: 16850 筆 (33.04%)
+     * adversarial_benign: 15917 筆 (31.21%)
+     * vanilla_benign: 9984 筆 (19.58%)
+     * vanilla_harmful: 8248 筆 (16.17%)
+   - model_reply 分布:
+     * UNSAFE: 32565 筆 (63.85%)
+     * SAFE: 18434 筆 (36.15%)
+   - LLM 分類準確度 (Accuracy): 76.95% (正確: 39246/50999)
+
+📌 【Val (20%)】 - 總筆數: 17000
+   - data_type 分布:
+     * adversarial_harmful: 5552 筆 (32.66%)
+     * adversarial_benign: 5319 筆 (31.29%)
+     * vanilla_benign: 3315 筆 (19.50%)
+     * vanilla_harmful: 2814 筆 (16.55%)
+   - model_reply 分布:
+     * UNSAFE: 10843 筆 (63.78%)
+     * SAFE: 6157 筆 (36.22%)
+   - LLM 分類準確度 (Accuracy): 77.19% (正確: 13123/17000)
+
+📌 【Test1 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2832 筆 (33.32%)
+     * adversarial_benign: 2603 筆 (30.62%)
+     * vanilla_benign: 1677 筆 (19.73%)
+     * vanilla_harmful: 1388 筆 (16.33%)
+   - model_reply 分布:
+     * UNSAFE: 5378 筆 (63.27%)
+     * SAFE: 3122 筆 (36.73%)
+   - LLM 分類準確度 (Accuracy): 77.62% (正確: 6598/8500)
+
+📌 【Test2 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2794 筆 (32.87%)
+     * adversarial_benign: 2682 筆 (31.55%)
+     * vanilla_benign: 1672 筆 (19.67%)
+     * vanilla_harmful: 1352 筆 (15.91%)
+   - model_reply 分布:
+     * UNSAFE: 5455 筆 (64.18%)
+     * SAFE: 3045 筆 (35.82%)
+   - LLM 分類準確度 (Accuracy): 76.04% (正確: 6463/8500)
+
+============================================================
+--- 基於 目標變數 y3 (Safety Consistency) 進行分層分割的 Train/Val/Test1/Test2 分布 ---
+============================================================
+
+📌 【Train (60%)】 - 總筆數: 50999
+   - data_type 分布:
+     * adversarial_harmful: 16807 筆 (32.96%)
+     * adversarial_benign: 15895 筆 (31.17%)
+     * vanilla_benign: 10064 筆 (19.73%)
+     * vanilla_harmful: 8233 筆 (16.14%)
+   - model_reply 分布:
+     * UNSAFE: 32515 筆 (63.76%)
+     * SAFE: 18484 筆 (36.24%)
+   - LLM 分類準確度 (Accuracy): 76.98% (正確: 39258/50999)
+
+📌 【Val (20%)】 - 總筆數: 17000
+   - data_type 分布:
+     * adversarial_harmful: 5668 筆 (33.34%)
+     * adversarial_benign: 5343 筆 (31.43%)
+     * vanilla_benign: 3255 筆 (19.15%)
+     * vanilla_harmful: 2734 筆 (16.08%)
+   - model_reply 分布:
+     * UNSAFE: 10812 筆 (63.60%)
+     * SAFE: 6188 筆 (36.40%)
+   - LLM 分類準確度 (Accuracy): 76.98% (正確: 13086/17000)
+
+📌 【Test1 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2734 筆 (32.16%)
+     * adversarial_benign: 2687 筆 (31.61%)
+     * vanilla_benign: 1643 筆 (19.33%)
+     * vanilla_harmful: 1436 筆 (16.89%)
+   - model_reply 分布:
+     * UNSAFE: 5474 筆 (64.40%)
+     * SAFE: 3026 筆 (35.60%)
+   - LLM 分類準確度 (Accuracy): 76.52% (正確: 6504/8500)
+
+📌 【Test2 (10%)】 - 總筆數: 8500
+   - data_type 分布:
+     * adversarial_harmful: 2819 筆 (33.16%)
+     * adversarial_benign: 2596 筆 (30.54%)
+     * vanilla_benign: 1686 筆 (19.84%)
+     * vanilla_harmful: 1399 筆 (16.46%)
+   - model_reply 分布:
+     * UNSAFE: 5440 筆 (64.00%)
+     * SAFE: 3060 筆 (36.00%)
+   - LLM 分類準確度 (Accuracy): 77.44% (正確: 6582/8500)

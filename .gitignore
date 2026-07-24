@@ -19,7 +19,14 @@ models/
 *.pkl
 *.csv
 
-# Local results and outputs
-results*/
+# Local results and outputs - ignore cache and binary files, but allow logs and plots
+results/**/*
+!results/**/
+results/**/*.pkl
+results/**/cache/
+!results/**/*.png
+!results/**/*.txt
+!results/**/*.log
+!results/**/*.md
 
 

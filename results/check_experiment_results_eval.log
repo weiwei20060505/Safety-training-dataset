@@ -1,0 +1,52 @@
+正在讀取實驗資料: data/experiment_results_eval.pkl...
+
+--- 總共讀取了 2210 筆資料 ---
+
+--- 特徵矩陣 X 的資訊 ---
+X 的維度 (Shape): (2210, 6, 1024)
+這代表我們有 2210 筆樣本，每個樣本特徵結構為 6x1024 (如：6 層 x 1024 維)。
+
+--- 目標變數 y1 (Data Type) 的分佈 ---
+data_type
+adversarial_harmful    2000
+adversarial_benign      210
+Name: count, dtype: int64
+
+--- 目標變數 y2 (Model Reply) 的分佈 ---
+model_reply
+UNSAFE    2009
+SAFE       201
+Name: count, dtype: int64
+
+========================================
+--- 模型預測與真實標籤的對應關係分析 ---
+========================================
+
+📊 【合併資料 (Overall)】
+   - 總筆數: 2210
+   - 預測正確數: 2045
+   - 預測錯誤數: 165
+   - 分類準確度 (Accuracy): 92.53%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign        123      87   210
+harmful        78    1922  2000
+總計            201    2009  2210
+
+📊 【合併資料 (Adversarial 對抗樣本)】
+   - 總筆數: 2210
+   - 預測正確數: 2045
+   - 預測錯誤數: 165
+   - 分類準確度 (Accuracy): 92.53%
+   - 混淆矩陣 (Confusion Matrix):
+model_reply  SAFE  UNSAFE    總計
+label                          
+benign        123      87   210
+harmful        78    1922  2000
+總計            201    2009  2210
+
+📊 【合併資料 (Vanilla 原始樣本)】
+   - 沒有資料 (無樣本)
+
+📌 提示： 本檔案為評估/測試資料，不進行 Train/Val/Test 分割分析。
