@@ -10,7 +10,7 @@ results/plots/combined/ 底下。
 選項:
     --chart   all | trends | trends_split_y | reliability_combined |
               quadrant_hist | score_hist | brier_components |
-              step_mappings | joint_calibration
+              step_mappings | joint_calibration | roc_curves
     --target  y1 | y2 | y3 | all         (預設 all)
     --split   test1 | test2 | eval | all  (預設 all；部分圖固定 test2)
     --model   SGD | MLP | LGB | LR | RF | all  (預設 all)
@@ -24,7 +24,8 @@ results/plots/combined/ 底下。
     ├── 04_Score_Histograms/
     ├── 05_Brier_Components/
     ├── 06_Step_Mappings/
-    └── 07_Joint_Calibration/
+    ├── 07_Joint_Calibration/
+    └── 08_ROC_Curves/
 """
 
 import os
@@ -396,30 +397,38 @@ def _combine_2x6_chart(
             )
 
 
-def combine_06_brier_components(targets: list[str], models: list[str]) -> None:
-    """05_Brier_Components — 2×6 大圖，共 15 張。"""
+def combine_06_brier_components(targets: list[str], models: list[str], splits: list[str] | None = None) -> None:
+    """05_Brier_Components — 2×6 大圖 (支援所有 splits: test1, test2, eval)。"""
+    if splits is None:
+        splits = ALL_SPLITS
     print("\n[拼圖] 05_Brier_Components ...")
-    _combine_2x6_chart(
-        src_folder="05_Brier_Components",
-        dst_folder="05_Brier_Components",
-        file_suffix="brier_components",
-        chart_label="Brier Components",
-        targets=targets, models=models,
-        tile_w=530, tile_h=438,   # 原圖 1335x1105 → 比例 1.21
-    )
+    for sp in splits:
+        _combine_2x6_chart(
+            src_folder="05_Brier_Components",
+            dst_folder="05_Brier_Components",
+            file_suffix="brier_components",
+            chart_label="Brier Components",
+            targets=targets, models=models,
+            tile_w=530, tile_h=438,   # 原圖 1335x1105 → 比例 1.21
+            split=sp,
+        )
 
 
-def combine_07_step_mappings(targets: list[str], models: list[str]) -> None:
-    """06_Step_Mappings — 2×6 大圖，共 15 張。"""
+def combine_07_step_mappings(targets: list[str], models: list[str], splits: list[str] | None = None) -> None:
+    """06_Step_Mappings — 2×6 大圖 (支援所有 splits: test1, test2, eval)。"""
+    if splits is None:
+        splits = ALL_SPLITS
     print("\n[拼圖] 06_Step_Mappings ...")
-    _combine_2x6_chart(
-        src_folder="06_Step_Mappings",
-        dst_folder="06_Step_Mappings",
-        file_suffix="step_mapping",
-        chart_label="Step Mappings",
-        targets=targets, models=models,
-        tile_w=540, tile_h=402,   # 原圖 1038x773 → 比例 1.34
-    )
+    for sp in splits:
+        _combine_2x6_chart(
+            src_folder="06_Step_Mappings",
+            dst_folder="06_Step_Mappings",
+            file_suffix="step_mapping",
+            chart_label="Step Mappings",
+            targets=targets, models=models,
+            tile_w=540, tile_h=402,   # 原圖 1038x773 → 比例 1.34
+            split=sp,
+        )
 
 
 def combine_08_joint_calibration(
@@ -443,6 +452,32 @@ def combine_08_joint_calibration(
         )
 
 
+def combine_09_roc_curves(targets: list[str]) -> None:
+    """
+    08_ROC_Curves — 1×6 大圖 (橫著 1 列 × 6 行 對應 Layer 1~6)
+    來源: results/unified_training/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png
+    """
+    print("\n[拼圖] 08_ROC_Curves (1x6 橫向層數比較圖) ...")
+    col_labels = [f"Layer {i}" for i in ALL_LAYERS]
+
+    for target in targets:
+        grid: list[list[str | None]] = []
+        row: list[str | None] = []
+        for layer in ALL_LAYERS:
+            path = f"results/unified_training/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
+            row.append(path)
+        grid.append(row)
+
+        out = f"{COMBINED_DIR}/08_ROC_Curves/{target}/combined_{target}_roc_1x6.png"
+        combine_grid(
+            grid, out,
+            title=f"ROC Curves across Layers 1~6 — Target: {target.upper()}",
+            tile_w=600, tile_h=525,   # 原圖 1200x1050 → 比例 1.14
+            row_labels=[target.upper()],
+            col_labels=col_labels,
+        )
+
+
 # ─── CLI 主程式 ───────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -459,6 +494,7 @@ def main() -> None:
   brier_components    05_Brier_Components      2×6 (test2) × 15 張
   step_mappings       06_Step_Mappings         2×6 (test2) × 15 張
   joint_calibration   07_Joint_Calibration     2×6 (test2) × 15 張
+  roc_curves          08_ROC_Curves            1×6 (層 1~6) × 3 任務
 
 注意: quadrant_hist / score_hist / brier_components /
       step_mappings / joint_calibration 固定使用 test2，--split 對其無效。
@@ -469,7 +505,7 @@ def main() -> None:
         choices=[
             'all', 'trends', 'trends_split_y', 'reliability_combined',
             'quadrant_hist', 'score_hist', 'brier_components',
-            'step_mappings', 'joint_calibration',
+            'step_mappings', 'joint_calibration', 'roc', 'roc_curves',
         ],
         default='all',
         help="要拼接的圖表類型 (預設: all)",
@@ -498,12 +534,18 @@ def main() -> None:
     targets = ALL_TARGETS if args.target == 'all' else [args.target]
     splits  = ALL_SPLITS  if args.split  == 'all' else [args.split]
     models  = ALL_MODELS  if args.model  == 'all' else [args.model]
-    charts  = (
-        ['trends', 'trends_split_y', 'reliability_combined',
-         'quadrant_hist', 'score_hist', 'brier_components',
-         'step_mappings', 'joint_calibration']
-        if args.chart == 'all' else [args.chart]
-    )
+    
+    all_charts = [
+        'trends', 'trends_split_y', 'reliability_combined',
+        'quadrant_hist', 'score_hist', 'brier_components',
+        'step_mappings', 'joint_calibration', 'roc_curves',
+    ]
+    if args.chart == 'all':
+        charts = all_charts
+    elif args.chart in ['roc', 'roc_curves']:
+        charts = ['roc_curves']
+    else:
+        charts = [args.chart]
 
     # 確認來源目錄存在
     if not os.path.isdir(PLOTS_DIR):
@@ -529,13 +571,16 @@ def main() -> None:
         combine_05_score_hist(targets, models)
 
     if 'brier_components' in charts:
-        combine_06_brier_components(targets, models)
+        combine_06_brier_components(targets, models, splits)
 
     if 'step_mappings' in charts:
-        combine_07_step_mappings(targets, models)
+        combine_07_step_mappings(targets, models, splits)
 
     if 'joint_calibration' in charts:
         combine_08_joint_calibration(targets, models)
+
+    if 'roc_curves' in charts or 'roc' in charts:
+        combine_09_roc_curves(targets)
 
     print("\n[OK] 所有大圖拼接完成！(已儲存至 results/plots/combined/)")
 

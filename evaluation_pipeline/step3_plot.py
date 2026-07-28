@@ -49,8 +49,8 @@ def plot_reliability_curve(y_true_g, score_pre_g, y_prob_cal_g, bin_edges, title
     ax.plot(mean_pred_cal[valid_cal], frac_pos_cal[valid_cal], "s-", color="#4C72B0", linewidth=2.0,
             label=f"校正後 (Isotonic, Brier: {metrics_cal['brier']:.4f})")
             
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlim([-0.02, 1.02])
+    ax.set_ylim([0.0, 1.02])
     ax.set_xlabel("平均預測機率 (Mean Predicted Probability)", fontsize=11, fontweight='bold')
     ax.set_ylabel("實際正樣本比例 (Fraction of Positives)", fontsize=11, fontweight='bold')
     ax.set_title(title, fontsize=12, fontweight='bold')
@@ -124,8 +124,8 @@ def plot_reliability_curve_combined(y_true, score_pre, y_prob_cal, y1_labels, bi
         ax.plot(mean_pred_cal_1[valid_cal_1], frac_pos_cal_1[valid_cal_1], "s-", color="blue", linewidth=2.0, alpha=0.9,
                 label=f"y1==1 校正後 (Isotonic, Brier: {metrics_cal_1['brier']:.4f})")
                 
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlim([-0.02, 1.02])
+    ax.set_ylim([0.0, 1.02])
     ax.set_xlabel("平均預測機率 (Mean Predicted Probability)", fontsize=11, fontweight='bold')
     ax.set_ylabel("實際正樣本比例 (Fraction of Positives)", fontsize=11, fontweight='bold')
     ax.set_title(title, fontsize=12, fontweight='bold')
@@ -179,7 +179,28 @@ def plot_step_mapping(score_pre_g, y_prob_cal_g, title, save_path):
     fig.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
-def plot_brier_components(y_true_g, y_prob_cal_g, title, save_path):
+def get_clean_ylim(v_max):
+    if v_max <= 0:
+        return (0.0, 0.001)
+    target_max = v_max * 1.12
+    if target_max <= 0:
+        return (0.0, 0.001)
+    mag = 10 ** np.floor(np.log10(target_max))
+    val = target_max / mag
+    if val <= 1.2:
+        rounded_val = np.ceil(val * 10) / 10
+    elif val <= 2.5:
+        rounded_val = np.ceil(val * 4) / 4
+    elif val <= 5.0:
+        rounded_val = np.ceil(val * 2) / 2
+    else:
+        rounded_val = np.ceil(val)
+    ylim_high = float(np.round(rounded_val * mag, 6))
+    if ylim_high <= 0:
+        ylim_high = 0.001
+    return (0.0, ylim_high)
+
+def plot_brier_components(y_true_g, y_prob_cal_g, title, save_path, rel_ylim=None, res_ylim=None):
     """
     繪製 2x1 雙 Y 軸 Brier 組分與 Bin 樣本佔比圖表 (精確符合附圖樣式)
     """
@@ -222,13 +243,23 @@ def plot_brier_components(y_true_g, y_prob_cal_g, title, save_path):
     ax_rel = ax_top
     ax_res = ax_top.twinx()
     
-    b1 = ax_rel.bar(x_indices - bar_width/2, rel_vals, width=bar_width, color=colors['Reliability'], label='可靠度 (Rel)', zorder=3, alpha=0.85)
-    b2 = ax_res.bar(x_indices + bar_width/2, res_vals, width=bar_width, color=colors['Resolution'], label='區分度 (Res)', zorder=3, alpha=0.85)
+    b1 = ax_rel.bar(x_indices - bar_width/2, rel_vals, width=bar_width, color=colors['Reliability'], edgecolor='#2E6B38', linewidth=0.8, label='可靠度 (Rel)', zorder=3, alpha=0.85)
+    b2 = ax_res.bar(x_indices + bar_width/2, res_vals, width=bar_width, color=colors['Resolution'], edgecolor='#8B262A', linewidth=0.8, label='區分度 (Res)', zorder=3, alpha=0.85)
     
     ax_rel.set_ylabel('Reliability (Rel 貢獻值)', color=colors['Reliability'], fontsize=11, fontweight='bold')
     ax_res.set_ylabel('Resolution (Res 貢獻值)', color=colors['Resolution'], fontsize=11, fontweight='bold')
     ax_rel.tick_params(axis='y', labelcolor=colors['Reliability'])
     ax_res.tick_params(axis='y', labelcolor=colors['Resolution'])
+
+    if rel_ylim is not None and rel_ylim[0] != rel_ylim[1]:
+        ax_rel.set_ylim((0.0, rel_ylim[1]))
+    else:
+        ax_rel.set_ylim(bottom=0.0)
+        
+    if res_ylim is not None and res_ylim[0] != res_ylim[1]:
+        ax_res.set_ylim((0.0, res_ylim[1]))
+    else:
+        ax_res.set_ylim(bottom=0.0)
     
     # 合併上方圖例
     lines1, labels1 = ax_rel.get_legend_handles_labels()
@@ -400,7 +431,7 @@ def plot_joint_calibration(pre_scores, post_scores, y_true, title, save_path):
     if bin_centers:
         ax2.scatter(bin_centers, bin_accs, facecolors='#7A88FF', edgecolors='blue', s=45, alpha=0.8, label='Bin accuracy', zorder=5)
         
-    ax2.set_ylim([-0.05, 1.05])
+    ax2.set_ylim([0.0, 1.02])
     
     # 合併雙軸圖例
     lines1, labels1 = ax1.get_legend_handles_labels()
@@ -603,7 +634,42 @@ def main():
                     plot_metrics_trends_split_y(predictions_cache, target, split, group_val, brier_path, logloss_path)
                     print(f"  └─ 產出 {target} {split} 組別 y1=={group_val} Brier & LogLoss 獨立趨勢折線圖")
                     
-    # 2. Plot granular model-level charts
+    # 2. Precalculate Y-limits for Brier Components per big chart (target, model, split)
+    brier_comp_ylims = {}
+    if 'brier_components' in charts:
+        for t in targets:
+            for s in splits:
+                for m in models:
+                    rel_max, res_max = 0.0, 0.0
+                    for lyr in layers:
+                        if t in predictions_cache and lyr in predictions_cache[t]:
+                            if 'splits' in predictions_cache[t][lyr] and s in predictions_cache[t][lyr]['splits']:
+                                l_data = predictions_cache[t][lyr]['splits'][s]
+                                if m in l_data:
+                                    d = l_data[m]
+                                    y_t, y_p, y1_l = np.array(d['y_true']), np.array(d['y_prob']), np.array(d['y1'])
+                                    for g in [0, 1]:
+                                        m_g = (y1_l == g)
+                                        if np.sum(m_g) > 0:
+                                            y_t_g, y_p_g = y_t[m_g], y_p[m_g]
+                                            N_g = len(y_t_g)
+                                            gm = np.mean(y_t_g) if N_g > 0 else 0.0
+                                            b_ids = np.digitize(y_p_g, np.linspace(0.0, 1.0, 11))
+                                            for b in range(1, 11):
+                                                mask_b = (b_ids == b)
+                                                if b == 10: mask_b = mask_b | (y_p_g == 1.0)
+                                                n_s = np.sum(mask_b)
+                                                if n_s > 0:
+                                                    w_b = n_s / N_g
+                                                    pk_bar = np.mean(y_p_g[mask_b])
+                                                    ok_bar = np.mean(y_t_g[mask_b])
+                                                    rel_b = w_b * ((pk_bar - ok_bar) ** 2)
+                                                    res_b = w_b * ((ok_bar - gm) ** 2)
+                                                    if rel_b > rel_max: rel_max = rel_b
+                                                    if res_b > res_max: res_max = res_b
+                    brier_comp_ylims[(t, m, s)] = (get_clean_ylim(rel_max), get_clean_ylim(res_max))
+
+    # 3. Plot granular model-level charts
     for target in targets:
         for split in splits:
             for layer in layers:
@@ -656,7 +722,8 @@ def main():
                             comp_dir = f"results/plots/05_Brier_Components/{target}/{split}/layer_{layer}"
                             comp_path = os.path.join(comp_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_brier_components.png")
                             comp_title = f"{model} - Brier 組分與 Bin 樣本佔比 (雙 Y 軸 (Dual Axis))\n{split} | Layer {layer} | {target.upper()} (組別: y1 == {group_val})"
-                            plot_brier_components(y_true_g, y_prob_cal_g, comp_title, comp_path)
+                            rel_ylim_comp, res_ylim_comp = brier_comp_ylims.get((target, model, split), (None, None))
+                            plot_brier_components(y_true_g, y_prob_cal_g, comp_title, comp_path, rel_ylim=rel_ylim_comp, res_ylim=res_ylim_comp)
                             
                         # (D) Score Histograms
                         if 'score_hist' in charts:

@@ -37,7 +37,7 @@ col_display_names = {
 }
 
 def plot_3x3_grid(metric_name, metric_title, filename):
-    fig, axes = plt.subplots(3, 3, figsize=(18, 14), sharex=True)
+    fig, axes = plt.subplots(3, 3, figsize=(18, 14), sharex=True, sharey=True)
     fig.suptitle(f'跨隱藏層 (Layer 1~6) {metric_title} 走勢圖 3x3 矩陣對比\n(模式: Split 校正 | 資料對齊組)', 
                  fontsize=18, fontweight='bold', y=0.98)
     
