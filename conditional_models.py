@@ -111,10 +111,64 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
         y1_zero = np.zeros(len(X))
         return self.predict_proba(X, y1_zero)
 
-    def predict_proba_head1(self, X):
-        """強迫設定 y1=1 (Unsafe 分支)，獲取 P(y2=1 | X, y1=1)"""
-        y1_one = np.ones(len(X))
-        return self.predict_proba(X, y1_one)
+        def predict_proba_head1(self, X):
+            """強迫設定 y1=1 (Unsafe 分支)，獲取 P(y2=1 | X, y1=1)"""
+            y1_one = np.ones(len(X))
+            return self.predict_proba(X, y1_one)
+
+
+class Feature129LGBMClassifier(BaseEstimator, ClassifierMixin):
+    """
+    LightGBM 129維特徵全域探索分類器 (策略 2)
+    將 y1 作為第 129 維度 (Column 0) 與 128 維隱藏狀態併入標準 LGB 模型，
+    不加強迫切割，由資訊增益 (Information Gain) 自由尋找 y1 與特徵之切分點。
+    """
+    def __init__(self, max_depth=4, num_leaves=15, n_estimators=100, learning_rate=0.05, random_state=42):
+        self.max_depth = max_depth
+        self.num_leaves = num_leaves
+        self.n_estimators = n_estimators
+        self.learning_rate = learning_rate
+        self.random_state = random_state
+        self.model_ = None
+        self.classes_ = np.array([0, 1])
+        self._estimator_type = "classifier"
+
+    def fit(self, X, y1, y2):
+        X = np.asarray(X, dtype=np.float32)
+        y1 = np.asarray(y1, dtype=np.float32).reshape(-1, 1)
+        y2 = np.asarray(y2, dtype=int)
+        X_all = np.hstack([y1, X])
+
+        params = {
+            'objective': 'binary',
+            'metric': 'binary_logloss',
+            'max_depth': self.max_depth,
+            'num_leaves': self.num_leaves,
+            'learning_rate': self.learning_rate,
+            'random_state': self.random_state,
+            'min_data_in_leaf': 1,
+            'min_child_samples': 1,
+            'verbosity': -1,
+            'is_unbalance': False
+        }
+        dtrain = lgb.Dataset(X_all, label=y2, categorical_feature=[0])
+        self.model_ = lgb.train(
+            params,
+            dtrain,
+            num_boost_round=self.n_estimators
+        )
+        return self
+
+    def predict_proba(self, X, y1=None):
+        X = np.asarray(X, dtype=np.float32)
+        if y1 is None:
+            y1 = np.zeros(len(X))
+        y1 = np.asarray(y1, dtype=np.float32).reshape(-1, 1)
+        X_all = np.hstack([y1, X])
+        raw_preds = self.model_.predict(X_all)
+        proba_1 = raw_preds.reshape(-1, 1)
+        proba_0 = 1.0 - proba_1
+        return np.hstack([proba_0, proba_1])
 
 
 if TORCH_AVAILABLE:
@@ -161,6 +215,31 @@ if TORCH_AVAILABLE:
             logit0 = self.head0(feat).squeeze(-1) # (N,)
             logit1 = self.head1(feat).squeeze(-1) # (N,)
             return logit0, logit1
+
+
+    class SingleHead129MLPNet(nn.Module):
+        """
+        129維單頭標準神經網路 (PyTorch 策略 4)
+        Input 129 -> 256 -> 128 -> 64 -> 1
+        """
+        def __init__(self, input_dim=129, hidden_dims=[256, 128, 64], dropout_rate=0.2):
+            super().__init__()
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, hidden_dims[0]),
+                nn.BatchNorm1d(hidden_dims[0]),
+                nn.GELU(),
+                nn.Dropout(dropout_rate),
+                nn.Linear(hidden_dims[0], hidden_dims[1]),
+                nn.BatchNorm1d(hidden_dims[1]),
+                nn.GELU(),
+                nn.Dropout(dropout_rate),
+                nn.Linear(hidden_dims[1], hidden_dims[2]),
+                nn.GELU(),
+                nn.Linear(hidden_dims[2], 1)
+            )
+
+        def forward(self, x):
+            return self.net(x).squeeze(-1)
 
 
     class YHeadMLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
@@ -251,3 +330,81 @@ if TORCH_AVAILABLE:
             """單獨獲取 Head 1 (y1=1) 之預測機率 P(y2=1 | X, y1=1)"""
             y1_one = np.ones(len(X))
             return self.predict_proba(X, y1_one)
+
+
+    class SingleHead129MLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
+        """
+        PyTorch 129維單頭標準神經網路分類器 (策略 4)
+        """
+        def __init__(self, input_dim=128, epochs=50, batch_size=64, lr=1e-3, weight_decay=1e-4, random_state=42):
+            self.input_dim = input_dim
+            self.epochs = epochs
+            self.batch_size = batch_size
+            self.lr = lr
+            self.weight_decay = weight_decay
+            self.random_state = random_state
+            self.model_ = None
+            self.device_ = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.classes_ = np.array([0, 1])
+            self._estimator_type = "classifier"
+
+        def fit(self, X, y1, y2, verbose=False):
+            torch.manual_seed(self.random_state)
+            np.random.seed(self.random_state)
+            
+            X = np.asarray(X, dtype=np.float32)
+            y1 = np.asarray(y1, dtype=np.float32).reshape(-1, 1)
+            X_all = np.hstack([y1, X])
+            
+            X_tensor = torch.tensor(X_all, dtype=torch.float32)
+            y2_tensor = torch.tensor(y2, dtype=torch.float32)
+
+            dataset = TensorDataset(X_tensor, y2_tensor)
+            dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+
+            self.model_ = SingleHead129MLPNet(input_dim=self.input_dim + 1).to(self.device_)
+            optimizer = optim.AdamW(self.model_.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+            bce_loss = nn.BCEWithLogitsLoss()
+
+            self.model_.train()
+            for epoch in range(self.epochs):
+                total_loss = 0.0
+                for bx, by2 in dataloader:
+                    bx, by2 = bx.to(self.device_), by2.to(self.device_)
+                    optimizer.zero_grad()
+                    logits = self.model_(bx)
+                    loss = bce_loss(logits, by2)
+                    loss.backward()
+                    optimizer.step()
+                    total_loss += loss.item() * len(bx)
+                
+                if verbose and (epoch + 1) % 10 == 0:
+                    print(f"Epoch {epoch+1}/{self.epochs} - Loss: {total_loss / len(dataset):.4f}")
+
+            return self
+
+        def predict_proba(self, X, y1=None):
+            self.model_.eval()
+            X = np.asarray(X, dtype=np.float32)
+            if y1 is None:
+                y1 = np.zeros(len(X))
+            y1 = np.asarray(y1, dtype=np.float32).reshape(-1, 1)
+            X_all = np.hstack([y1, X])
+            X_tensor = torch.tensor(X_all, dtype=torch.float32).to(self.device_)
+            with torch.no_grad():
+                logits = self.model_(X_tensor)
+                p1 = torch.sigmoid(logits).cpu().numpy().reshape(-1, 1)
+            p0 = 1.0 - p1
+            return np.hstack([p0, p1])
+else:
+    class YHeadMLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
+        """PyTorch 未安裝時之 Dummy 佔位類別"""
+        def __init__(self, *args, **kwargs):
+            raise ImportError("PyTorch (torch) 未安裝，無法使用 YHeadMLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")
+
+    class SingleHead129MLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
+        """PyTorch 未安裝時之 Dummy 佔位類別"""
+        def __init__(self, *args, **kwargs):
+            raise ImportError("PyTorch (torch) 未安裝，無法使用 SingleHead129MLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")
+
+
