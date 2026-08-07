@@ -3,13 +3,12 @@
 ======================================================================
 針對 Layer 3, 4, 5, 6 訓練 4 種模型策略 (共 16 個模型)：
 1. RootSplit_LGBM
-2. Feature129_LGBM
+2. FeaturePlusY1_LGBM
 3. YHead_MLP
-4. SingleHead129_MLP
+4. SingleHead_MLP
 
 資料集切分：60% Train (6,000筆) / 20% Val (2,000筆) / 20% Test (2,000筆)
-不安裝/不使用 RandomUnderSampler (直接全量訓練)
-結果儲存至: results/framework_training/
+結果儲存至: results/v2_framework/framework_training/{with_pca,without_pca}/
 """
 
 import os
@@ -22,6 +21,7 @@ import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+import argparse
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -34,9 +34,9 @@ from sklearn.metrics import (
 
 from conditional_models import (
     RootSplitLGBMClassifier,
-    Feature129LGBMClassifier,
+    FeaturePlusY1LGBMClassifier,
     YHeadMLPPyTorchClassifier,
-    SingleHead129MLPPyTorchClassifier
+    SingleHeadMLPPyTorchClassifier
 )
 
 def extract_y1_y2(df):
@@ -45,12 +45,19 @@ def extract_y1_y2(df):
     return y1, y2
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA for dimensionality reduction')
+    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA for dimensionality reduction')
+    args = parser.parse_args()
+
+    pca_status = "with_pca" if args.use_pca else "without_pca"
+
     print("=" * 80)
-    print("8月6日 LLM 隱藏狀態機率校正框架 — 開始訓練 16 個模型 (Layer 3~6 × 4模型)")
+    print(f"8月6日 LLM 隱藏狀態機率校正框架 — 開始訓練 16 個模型 (Layer 3~6 × 4模型) | PCA Mode: {pca_status}")
     print("=" * 80)
 
     train_path = "data/experiment_results_train_10000.pkl"
-    output_dir = "results/v2_framework/framework_training"
+    output_dir = f"results/v2_framework/framework_training/{pca_status}"
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\n[1] 載入主數據集: {train_path} ...")
@@ -87,7 +94,7 @@ def main():
     for layer in layers_to_train:
         layer_idx = layer - 1
         print("\n" + "=" * 70)
-        print(f"【Layer {layer} / 6】開始訓練與評估 (無 RandomUnderSampler)")
+        print(f"【Layer {layer} / 6】開始訓練與評估 (無 RandomUnderSampler) | PCA: {pca_status}")
         print("=" * 70)
 
         layer_dir = os.path.join(output_dir, f"layer_{layer}")
@@ -104,16 +111,19 @@ def main():
         X_tr_scaled = scaler.fit_transform(X_tr)
         X_val_scaled = scaler.transform(X_val)
 
-        pca = PCA(n_components=128, random_state=42)
-        X_tr_pca = pca.fit_transform(X_tr_scaled)
-        X_val_pca = pca.transform(X_val_scaled)
+        if args.use_pca:
+            pca = PCA(n_components=128, random_state=42)
+            X_tr_pca = pca.fit_transform(X_tr_scaled)
+            X_val_pca = pca.transform(X_val_scaled)
+        else:
+            X_tr_pca = X_tr_scaled
+            X_val_pca = X_val_scaled
 
-        # 4 種模型實體定義
+        input_dim = X_tr_pca.shape[1]
+
+        # 4 種模型實體定義 (快速測試：只跑 RootSplit_LGBM 且無限制生長)
         models_dict = {
-            "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42),
-            "Feature129_LGBM": Feature129LGBMClassifier(max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42),
-            "YHead_MLP": YHeadMLPPyTorchClassifier(input_dim=128, epochs=40, batch_size=64, lr=1e-3, random_state=42),
-            "SingleHead129_MLP": SingleHead129MLPPyTorchClassifier(input_dim=128, epochs=40, batch_size=64, lr=1e-3, random_state=42)
+            "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=-1, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.0, reg_lambda=0.0, random_state=42),
         }
 
         val_predictions['layers'][layer] = {}
@@ -163,6 +173,8 @@ def main():
 
             except Exception as e:
                 print(f"  │    └─ ⚠️ 訓練或評估失敗: {e}")
+                import traceback
+                traceback.print_exc()
 
     # 儲存 Summary CSV 與 Val 預測結果 joblib
     df_summary = pd.DataFrame(summary_records)
@@ -173,7 +185,7 @@ def main():
     joblib.dump(val_predictions, preds_out)
 
     print("\n" + "=" * 80)
-    print(f"16 個模型訓練與 Val_Set 評估完成！")
+    print(f"16 個模型訓練與 Val_Set 評估完成！ ({pca_status})")
     print(f"  ├─ 數據摘要 CSV: {csv_out}")
     print(f"  └─ 驗證集預測檔: {preds_out}")
     print("=" * 80)

@@ -31,11 +31,13 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
     將 y1 作為第 0 個特徵插入特徵矩陣 [y1, X]，利用 forcedsplits_filename 強迫所有決策樹
     在 Root Node (Depth 0) 必須依據 y1 <= 0.5 進行切分。
     """
-    def __init__(self, max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42):
+    def __init__(self, max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.5, reg_lambda=0.5, random_state=42):
         self.max_depth = max_depth
         self.num_leaves = num_leaves
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
         self.random_state = random_state
         self.model_ = None
         self.classes_ = np.array([0, 1])
@@ -77,10 +79,12 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
                 'max_depth': self.max_depth,
                 'num_leaves': self.num_leaves,
                 'learning_rate': self.learning_rate,
+                'reg_alpha': self.reg_alpha,
+                'reg_lambda': self.reg_lambda,
                 'random_state': self.random_state,
                 'forcedsplits_filename': forced_json_path,
-                'min_data_in_leaf': 1,
-                'min_child_samples': 1,
+                'min_data_in_leaf': 5,
+                'min_child_samples': 5,
                 'verbosity': -1,
                 'is_unbalance': True
             }
@@ -117,17 +121,19 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
             return self.predict_proba(X, y1_one)
 
 
-class Feature129LGBMClassifier(BaseEstimator, ClassifierMixin):
+class FeaturePlusY1LGBMClassifier(BaseEstimator, ClassifierMixin):
     """
-    LightGBM 129維特徵全域探索分類器 (策略 2)
-    將 y1 作為第 129 維度 (Column 0) 與 128 維隱藏狀態併入標準 LGB 模型，
+    LightGBM 特徵全域探索分類器 (策略 2)
+    將 y1 作為第 0 個特徵 (Column 0) 與隱藏狀態併入標準 LGB 模型，
     不加強迫切割，由資訊增益 (Information Gain) 自由尋找 y1 與特徵之切分點。
     """
-    def __init__(self, max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42):
+    def __init__(self, max_depth=4, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.5, reg_lambda=0.5, random_state=42):
         self.max_depth = max_depth
         self.num_leaves = num_leaves
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
         self.random_state = random_state
         self.model_ = None
         self.classes_ = np.array([0, 1])
@@ -145,9 +151,11 @@ class Feature129LGBMClassifier(BaseEstimator, ClassifierMixin):
             'max_depth': self.max_depth,
             'num_leaves': self.num_leaves,
             'learning_rate': self.learning_rate,
+            'reg_alpha': self.reg_alpha,
+            'reg_lambda': self.reg_lambda,
             'random_state': self.random_state,
-            'min_data_in_leaf': 1,
-            'min_child_samples': 1,
+            'min_data_in_leaf': 20,
+            'min_child_samples': 20,
             'verbosity': -1,
             'is_unbalance': False
         }
@@ -177,7 +185,7 @@ if TORCH_AVAILABLE:
         Y字型多頭神經網路 (PyTorch)
         包含 2 層共用隱藏骨幹 + 各 2 層分支標頭 (Head 0 / Head 1)，總深度 4 層
         """
-        def __init__(self, input_dim=128, shared_hidden=[256, 128], head_hidden=64, dropout_rate=0.2):
+        def __init__(self, input_dim=128, shared_hidden=[256, 128], head_hidden=64, dropout_rate=0.5):
             super().__init__()
             
             # Shared Backbone (Layer 1 & Layer 2)
@@ -217,12 +225,12 @@ if TORCH_AVAILABLE:
             return logit0, logit1
 
 
-    class SingleHead129MLPNet(nn.Module):
+    class SingleHeadMLPNet(nn.Module):
         """
-        129維單頭標準神經網路 (PyTorch 策略 4)
-        Input 129 -> 256 -> 128 -> 64 -> 1
+        單頭標準神經網路 (PyTorch 策略 4)
+        Input (D+1) -> 256 -> 128 -> 64 -> 1
         """
-        def __init__(self, input_dim=129, hidden_dims=[256, 128, 64], dropout_rate=0.2):
+        def __init__(self, input_dim=129, hidden_dims=[256, 128, 64], dropout_rate=0.5):
             super().__init__()
             self.net = nn.Sequential(
                 nn.Linear(input_dim, hidden_dims[0]),
@@ -246,7 +254,7 @@ if TORCH_AVAILABLE:
         """
         PyTorch 實現之 Y 字型多頭條件分類器
         """
-        def __init__(self, input_dim=128, epochs=50, batch_size=64, lr=1e-3, weight_decay=1e-4, random_state=42):
+        def __init__(self, input_dim=128, epochs=50, batch_size=64, lr=1e-3, weight_decay=1e-2, random_state=42):
             self.input_dim = input_dim
             self.epochs = epochs
             self.batch_size = batch_size
@@ -332,11 +340,11 @@ if TORCH_AVAILABLE:
             return self.predict_proba(X, y1_one)
 
 
-    class SingleHead129MLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
+    class SingleHeadMLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
         """
-        PyTorch 129維單頭標準神經網路分類器 (策略 4)
+        PyTorch 單頭標準神經網路分類器 (策略 4)
         """
-        def __init__(self, input_dim=128, epochs=50, batch_size=64, lr=1e-3, weight_decay=1e-4, random_state=42):
+        def __init__(self, input_dim=128, epochs=50, batch_size=64, lr=1e-3, weight_decay=1e-2, random_state=42):
             self.input_dim = input_dim
             self.epochs = epochs
             self.batch_size = batch_size
@@ -362,7 +370,7 @@ if TORCH_AVAILABLE:
             dataset = TensorDataset(X_tensor, y2_tensor)
             dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
 
-            self.model_ = SingleHead129MLPNet(input_dim=self.input_dim + 1).to(self.device_)
+            self.model_ = SingleHeadMLPNet(input_dim=self.input_dim + 1).to(self.device_)
             optimizer = optim.AdamW(self.model_.parameters(), lr=self.lr, weight_decay=self.weight_decay)
             bce_loss = nn.BCEWithLogitsLoss()
 
@@ -402,9 +410,7 @@ else:
         def __init__(self, *args, **kwargs):
             raise ImportError("PyTorch (torch) 未安裝，無法使用 YHeadMLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")
 
-    class SingleHead129MLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
+    class SingleHeadMLPPyTorchClassifier(BaseEstimator, ClassifierMixin):
         """PyTorch 未安裝時之 Dummy 佔位類別"""
         def __init__(self, *args, **kwargs):
-            raise ImportError("PyTorch (torch) 未安裝，無法使用 SingleHead129MLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")
-
-
+            raise ImportError("PyTorch (torch) 未安裝，無法使用 SingleHeadMLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")

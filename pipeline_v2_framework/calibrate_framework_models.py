@@ -5,7 +5,7 @@
 執行 PAVA (Isotonic Regression) 保序回歸校準與子群 ($y_1$) 分流校準。
 
 算出的 Raw Score, Calibrated Probability, Brier Components 等數據完整儲存至:
-  results/framework_calibration/
+  results/v2_framework/framework_calibration/{with_pca,without_pca}/
 """
 
 import os
@@ -19,13 +19,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.isotonic import IsotonicRegression
+import argparse
 
 from utils_calibration import calculate_all_metrics, brier_score_decomposition
 from conditional_models import (
     RootSplitLGBMClassifier,
-    Feature129LGBMClassifier,
+    FeaturePlusY1LGBMClassifier,
     YHeadMLPPyTorchClassifier,
-    SingleHead129MLPPyTorchClassifier
+    SingleHeadMLPPyTorchClassifier
 )
 
 def extract_y1_y2(df):
@@ -34,13 +35,20 @@ def extract_y1_y2(df):
     return y1, y2
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA for dimensionality reduction')
+    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA for dimensionality reduction')
+    args = parser.parse_args()
+
+    pca_status = "with_pca" if args.use_pca else "without_pca"
+
     print("=" * 80)
-    print("8月6日 LLM 隱藏狀態機率校正框架 — 開始執行階段二：子群機率校準 (PAVA)")
+    print(f"8月6日 LLM 隱藏狀態機率校正框架 — 開始執行階段二：子群機率校準 (PAVA) | PCA Mode: {pca_status}")
     print("=" * 80)
 
     train_path = "data/experiment_results_train_10000.pkl"
-    model_dir = "results/v2_framework/framework_training"
-    output_dir = "results/v2_framework/framework_calibration"
+    model_dir = f"results/v2_framework/framework_training/{pca_status}"
+    output_dir = f"results/v2_framework/framework_calibration/{pca_status}"
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. 讀取基準 10,000 訓練/驗證集以擬合 Scaler, PCA 與 Isotonic Calibration
@@ -103,7 +111,7 @@ def main():
         print(f"  └─ 載入 Eval / Test 3 (`experiment_results_eval.pkl`): {len(df_ev)} 筆")
 
     layers = [3, 4, 5, 6]
-    models = ["RootSplit_LGBM", "Feature129_LGBM", "YHead_MLP", "SingleHead129_MLP"]
+    models = ["RootSplit_LGBM", "FeaturePlusY1_LGBM", "YHead_MLP", "SingleHead_MLP"]
 
     calibration_records = []
     calibration_data = {
@@ -113,7 +121,7 @@ def main():
     for layer in layers:
         layer_idx = layer - 1
         print("\n" + "=" * 75)
-        print(f"【Layer {layer} / 6】進行模型加載、分數預測與 PAVA 機率校準")
+        print(f"【Layer {layer} / 6】進行模型加載、分數預測與 PAVA 機率校準 | PCA Mode: {pca_status}")
         print("=" * 75)
 
         X_tr = X_train_3d[train_idx, layer_idx, :]
@@ -127,9 +135,13 @@ def main():
         X_tr_scaled = scaler.fit_transform(X_tr)
         X_val_scaled = scaler.transform(X_val)
 
-        pca = PCA(n_components=128, random_state=42)
-        X_tr_pca = pca.fit_transform(X_tr_scaled)
-        X_val_pca = pca.transform(X_val_scaled)
+        if args.use_pca:
+            pca = PCA(n_components=128, random_state=42)
+            X_tr_pca = pca.fit_transform(X_tr_scaled)
+            X_val_pca = pca.transform(X_val_scaled)
+        else:
+            X_tr_pca = X_tr_scaled
+            X_val_pca = X_val_scaled
 
         calibration_data['layers'][layer] = {}
 
@@ -145,7 +157,11 @@ def main():
             # [Option A] 使用 Test 1 數據集的預測分數擬合 PAVA Isotonic Regression (In-Sample for Test 1)
             split_t1 = test_datasets['test1']
             X_t1 = split_t1['X_3d'][:, layer_idx, :]
-            X_t1_pca = pca.transform(scaler.transform(X_t1))
+            X_t1_scaled = scaler.transform(X_t1)
+            if args.use_pca:
+                X_t1_pca = pca.transform(X_t1_scaled)
+            else:
+                X_t1_pca = X_t1_scaled
             y1_t1, y2_t1 = split_t1['y1'], split_t1['y2']
             y3_t1 = (y1_t1 == y2_t1).astype(int)
 
@@ -184,7 +200,10 @@ def main():
 
                 X_sp = X_sp_3d[:, layer_idx, :]
                 X_sp_scaled = scaler.transform(X_sp)
-                X_sp_pca = pca.transform(X_sp_scaled)
+                if args.use_pca:
+                    X_sp_pca = pca.transform(X_sp_scaled)
+                else:
+                    X_sp_pca = X_sp_scaled
 
                 # Raw score (無 X 軸翻轉，保持原始預測分數 p)
                 s_raw = model.predict_proba(X_sp_pca, y1_sp)[:, 1]
@@ -254,7 +273,7 @@ def main():
     joblib.dump(calibration_data, joblib_out)
 
     print("\n" + "=" * 80)
-    print(f"階段二 PAVA 機率校準計算完成！數據已儲存至:")
+    print(f"階段二 PAVA 機率校準計算完成！ ({pca_status}) 數據已儲存至:")
     print(f"  ├─ 數據摘要 CSV: {csv_out}")
     print(f"  └─ 校準完整資料: {joblib_out}")
     print("=" * 80)

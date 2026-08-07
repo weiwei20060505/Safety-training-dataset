@@ -42,6 +42,7 @@ except ImportError:
 
 PLOTS_DIR    = "results/v1_baseline/plots"
 COMBINED_DIR = "results/v1_baseline/plots/combined"
+pca_status   = "with_pca"
 
 ALL_TARGETS = ['y1', 'y2', 'y3']
 ALL_SPLITS  = ['test1', 'test2', 'eval']
@@ -213,7 +214,7 @@ def combine_01_trends(targets: list[str], splits: list[str]) -> None:
                 row.append(path)
             grid.append(row)
 
-        out = f"{COMBINED_DIR}/01_Metrics_Trends/combined_{suffix}.png"
+        out = f"{COMBINED_DIR}/{split}/01_Metrics_Trends/combined_{suffix}.png"
         combine_grid(
             grid, out,
             title=f"Metrics Trends — {metric_label}",
@@ -308,7 +309,7 @@ def combine_04_quadrant_hist(targets: list[str], models: list[str]) -> None:
                     row.append(path)
                 grid.append(row)
 
-            out = (f"{COMBINED_DIR}/03_Quadrant_Histograms"
+            out = (f"{COMBINED_DIR}/test2/03_Quadrant_Histograms"
                    f"/{target}/{target}_{model}_quadrant_2x3.png")
             combine_grid(
                 grid, out,
@@ -386,8 +387,8 @@ def _combine_2x6_chart(
                 grid.append(row)
 
             # 檔名加入 split 以區分不同評估集
-            out = (f"{COMBINED_DIR}/{dst_folder}"
-                   f"/{target}/{target}_{model}_{split}_{file_suffix}_2x6.png")
+            out = (f"{COMBINED_DIR}/{split}/{dst_folder}"
+                   f"/{target}/{target}_{model}_{file_suffix}_2x6.png")
             combine_grid(
                 grid, out,
                 title=f"{chart_label} ({split}) — Target: {target} | Model: {model}",
@@ -529,6 +530,9 @@ def main() -> None:
         help="分類器模型 (預設: all)",
     )
     args = parser.parse_args()
+    
+    pca_status = "with_pca" if args.use_pca else "without_pca"
+    COMBINED_DIR = f"results/v1_baseline/plots/combined/{pca_status}"
 
     # 解析過濾條件
     targets = ALL_TARGETS if args.target == 'all' else [args.target]
