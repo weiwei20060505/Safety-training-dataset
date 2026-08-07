@@ -148,27 +148,28 @@ def main():
             y3_t1 = (y1_t1 == y2_t1).astype(int)
 
             raw_s_t1 = model.predict_proba(X_t1_pca, y1_t1)[:, 1]
+            pre_cal_t1 = np.where(y1_t1 == 1, raw_s_t1, 1.0 - raw_s_t1)
 
             # 擬合 PAVA 演算法 (Isotonic Regression) — Fit on Test 1 Target: y3 (Consistency)
             # 1. 全域 PAVA
             iso_overall = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
-            iso_overall.fit(raw_s_t1, y3_t1)
+            iso_overall.fit(pre_cal_t1, y3_t1)
 
-            # 2. y1=0 Subgroup PAVA (單調遞減擬合，使 X 軸保持原始 p，紅線從左上至右下)
+            # 2. y1=0 Subgroup PAVA
             mask0_t1 = (y1_t1 == 0)
-            iso_h0 = IsotonicRegression(out_of_bounds='clip', increasing=False, y_min=0.0, y_max=1.0)
+            iso_h0 = IsotonicRegression(out_of_bounds='clip', increasing=True, y_min=0.0, y_max=1.0)
             if np.sum(mask0_t1) > 0 and len(np.unique(y3_t1[mask0_t1])) > 1:
-                iso_h0.fit(raw_s_t1[mask0_t1], y3_t1[mask0_t1])
+                iso_h0.fit(pre_cal_t1[mask0_t1], y3_t1[mask0_t1])
             else:
-                iso_h0.fit(raw_s_t1, y3_t1)
+                iso_h0.fit(pre_cal_t1, y3_t1)
 
-            # 3. y1=1 Subgroup PAVA (單調遞增擬合，藍線從左下至右上)
+            # 3. y1=1 Subgroup PAVA
             mask1_t1 = (y1_t1 == 1)
             iso_h1 = IsotonicRegression(out_of_bounds='clip', increasing=True, y_min=0.0, y_max=1.0)
             if np.sum(mask1_t1) > 0 and len(np.unique(y3_t1[mask1_t1])) > 1:
-                iso_h1.fit(raw_s_t1[mask1_t1], y3_t1[mask1_t1])
+                iso_h1.fit(pre_cal_t1[mask1_t1], y3_t1[mask1_t1])
             else:
-                iso_h1.fit(raw_s_t1, y3_t1)
+                iso_h1.fit(pre_cal_t1, y3_t1)
 
             calibration_data['layers'][layer][model_name] = {}
 
@@ -185,20 +186,21 @@ def main():
 
                 # Raw score (無 X 軸翻轉，保持原始預測分數 p)
                 s_raw = model.predict_proba(X_sp_pca, y1_sp)[:, 1]
+                pre_cal_sp = np.where(y1_sp == 1, s_raw, 1.0 - s_raw)
 
                 # Calibrated probabilities (PAVA)
-                prob_cal_overall = iso_overall.transform(s_raw)
+                prob_cal_overall = iso_overall.transform(pre_cal_sp)
 
                 prob_cal_split = np.zeros_like(s_raw)
                 mask0_sp = (y1_sp == 0)
                 mask1_sp = (y1_sp == 1)
                 if np.sum(mask0_sp) > 0:
-                    prob_cal_split[mask0_sp] = iso_h0.transform(s_raw[mask0_sp])
+                    prob_cal_split[mask0_sp] = iso_h0.transform(pre_cal_sp[mask0_sp])
                 if np.sum(mask1_sp) > 0:
-                    prob_cal_split[mask1_sp] = iso_h1.transform(s_raw[mask1_sp])
+                    prob_cal_split[mask1_sp] = iso_h1.transform(pre_cal_sp[mask1_sp])
 
-                # 指標計算 (針對 y3 一致性標籤)
-                m_raw = calculate_all_metrics(y3_sp, s_raw)
+                # 指標計算 (針對 y3 一致性標籤，使用 pre_cal_sp 作為未校正分數以與舊版對齊)
+                m_raw = calculate_all_metrics(y3_sp, pre_cal_sp)
                 m_cal_ov = calculate_all_metrics(y3_sp, prob_cal_overall)
                 m_cal_sp = calculate_all_metrics(y3_sp, prob_cal_split)
 
@@ -228,6 +230,7 @@ def main():
                     'y2': y2_sp,
                     'y3': y3_sp,
                     's_raw': s_raw,
+                    'score_pre': pre_cal_sp,
                     'prob_cal_overall': prob_cal_overall,
                     'prob_cal_split': prob_cal_split,
                     'iso_overall': iso_overall,

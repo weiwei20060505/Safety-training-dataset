@@ -222,24 +222,24 @@ def generate_07_joint_calibration(calib_data, base_output_dir):
                 except KeyError:
                     continue
 
-                s_raw = info['s_raw']
+                score_pre = info['score_pre']
                 p_cal = info['prob_cal_split']
                 y1 = info['y1']
-                y2 = info['y2']
+                y3 = info['y3']
 
                 # 1. Group y1 == 0
                 mask0 = (y1 == 0)
                 if np.sum(mask0) > 0:
-                    title0 = f"Histogram and Scatter Plot of Confidence\nTask: Y2 | Split: {split} | Layer: {layer} | Model: {MODEL_DISPLAY_NAMES[model_name]} | Group: y1 == 0"
+                    title0 = f"Histogram and Scatter Plot of Confidence\nTask: Y3 | Split: {split} | Layer: {layer} | Model: {MODEL_DISPLAY_NAMES[model_name]} | Group: y1 == 0"
                     save0 = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group0.png")
-                    plot_single_joint_calibration(s_raw[mask0], p_cal[mask0], y2[mask0], title0, save0)
+                    plot_single_joint_calibration(score_pre[mask0], p_cal[mask0], y3[mask0], title0, save0)
 
                 # 2. Group y1 == 1
                 mask1 = (y1 == 1)
                 if np.sum(mask1) > 0:
-                    title1 = f"Histogram and Scatter Plot of Confidence\nTask: Y2 | Split: {split} | Layer: {layer} | Model: {MODEL_DISPLAY_NAMES[model_name]} | Group: y1 == 1"
+                    title1 = f"Histogram and Scatter Plot of Confidence\nTask: Y3 | Split: {split} | Layer: {layer} | Model: {MODEL_DISPLAY_NAMES[model_name]} | Group: y1 == 1"
                     save1 = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group1.png")
-                    plot_single_joint_calibration(s_raw[mask1], p_cal[mask1], y2[mask1], title1, save1)
+                    plot_single_joint_calibration(score_pre[mask1], p_cal[mask1], y3[mask1], title1, save1)
 
     print("  └─ 單張圖繪製完成，開始拼接 2×4 組合大圖...")
     # 拼接大圖 (2 列: group0, group1 × 4 行: Layer 3, 4, 5, 6)
@@ -287,15 +287,14 @@ def generate_01_metrics_trends_split_y(calib_data, base_output_dir):
                     continue
 
                 y1 = info['y1']
-                y2 = info['y2']
-                s_raw = info['s_raw']
+                y3 = info['y3']
                 p_cal = info['prob_cal_split']
 
                 for g in [0, 1]:
                     mask = (y1 == g)
                     if np.sum(mask) == 0:
                         continue
-                    m_cal = calculate_all_metrics(y2[mask], p_cal[mask])
+                    m_cal = calculate_all_metrics(y3[mask], p_cal[mask])
                     all_records.append({
                         'layer': layer,
                         'model': model_name,
@@ -413,7 +412,7 @@ def generate_01_metrics_trends_split_y(calib_data, base_output_dir):
 
 # ─── 02_Reliability_Curves_split_y (4 個模型獨自畫前後，大圖共 4 張) ─────────────
 
-def plot_single_combined_reliability(y2, s_raw, p_cal, y1, title, save_path):
+def plot_single_combined_reliability(y_true, score_pre, p_cal, y1, title, save_path):
     """
     繪製單子圖: 包含 y1=0 校正前後, y1=1 校正前後之 Reliability Curves
     與 02_Reliability_Curves_combined 格式完全對齊
@@ -441,16 +440,16 @@ def plot_single_combined_reliability(y2, s_raw, p_cal, y1, title, save_path):
     # Group y1 == 0
     mask_0 = (y1 == 0)
     if np.sum(mask_0) > 0:
-        y2_0, s_raw_0, p_cal_0 = y2[mask_0], s_raw[mask_0], p_cal[mask_0]
-        m_raw0 = calculate_all_metrics(y2_0, s_raw_0)
-        m_cal0 = calculate_all_metrics(y2_0, p_cal_0)
+        y_true_0, score_pre_0, p_cal_0 = y_true[mask_0], score_pre[mask_0], p_cal[mask_0]
+        m_raw0 = calculate_all_metrics(y_true_0, score_pre_0)
+        m_cal0 = calculate_all_metrics(y_true_0, p_cal_0)
 
-        frac_r0, mean_r0 = get_10bin_curve(y2_0, s_raw_0)
+        frac_r0, mean_r0 = get_10bin_curve(y_true_0, score_pre_0)
         v_r0 = ~np.isnan(frac_r0)
         ax.plot(mean_r0[v_r0], frac_r0[v_r0], "o--", color="red", alpha=0.35,
                 label=f"y1=0 Raw (Brier: {m_raw0['brier']:.4f})")
 
-        frac_c0, mean_c0 = get_10bin_curve(y2_0, p_cal_0)
+        frac_c0, mean_c0 = get_10bin_curve(y_true_0, p_cal_0)
         v_c0 = ~np.isnan(frac_c0)
         ax.plot(mean_c0[v_c0], frac_c0[v_c0], "s-", color="red", linewidth=2.0, alpha=0.9,
                 label=f"y1=0 PAVA (Brier: {m_cal0['brier']:.4f})")
@@ -458,16 +457,16 @@ def plot_single_combined_reliability(y2, s_raw, p_cal, y1, title, save_path):
     # Group y1 == 1
     mask_1 = (y1 == 1)
     if np.sum(mask_1) > 0:
-        y2_1, s_raw_1, p_cal_1 = y2[mask_1], s_raw[mask_1], p_cal[mask_1]
-        m_raw1 = calculate_all_metrics(y2_1, s_raw_1)
-        m_cal1 = calculate_all_metrics(y2_1, p_cal_1)
+        y_true_1, score_pre_1, p_cal_1 = y_true[mask_1], score_pre[mask_1], p_cal[mask_1]
+        m_raw1 = calculate_all_metrics(y_true_1, score_pre_1)
+        m_cal1 = calculate_all_metrics(y_true_1, p_cal_1)
 
-        frac_r1, mean_r1 = get_10bin_curve(y2_1, s_raw_1)
+        frac_r1, mean_r1 = get_10bin_curve(y_true_1, score_pre_1)
         v_r1 = ~np.isnan(frac_r1)
         ax.plot(mean_r1[v_r1], frac_r1[v_r1], "o--", color="blue", alpha=0.35,
                 label=f"y1=1 Raw (Brier: {m_raw1['brier']:.4f})")
 
-        frac_c1, mean_c1 = get_10bin_curve(y2_1, p_cal_1)
+        frac_c1, mean_c1 = get_10bin_curve(y_true_1, p_cal_1)
         v_c1 = ~np.isnan(frac_c1)
         ax.plot(mean_c1[v_c1], frac_c1[v_c1], "s-", color="blue", linewidth=2.0, alpha=0.9,
                 label=f"y1=1 PAVA (Brier: {m_cal1['brier']:.4f})")
@@ -501,14 +500,14 @@ def generate_02_reliability_curves_combined(calib_data, base_output_dir):
                 except KeyError:
                     continue
 
-                s_raw = info['s_raw']
+                score_pre = info['score_pre']
                 p_cal = info['prob_cal_split']
                 y1 = info['y1']
-                y2 = info['y2']
+                y3 = info['y3']
 
                 title = f"Reliability Curves (Split y1) | Layer {layer} | {split.upper()}"
                 save_p = os.path.join(single_dir, model_name, f"{model_name}_{split}_layer{layer}_reliability.png")
-                plot_single_combined_reliability(y2, s_raw, p_cal, y1, title, save_p)
+                plot_single_combined_reliability(y3, score_pre, p_cal, y1, title, save_p)
 
         # 為該模型拼接 3 列 (test1, test2, eval) × 4 行 (Layer 3, 4, 5, 6) 的獨自大圖 (共有 4 張大圖)
         col_labels = [f"Layer {l}" for l in ALL_LAYERS]
@@ -522,10 +521,10 @@ def generate_02_reliability_curves_combined(calib_data, base_output_dir):
                 row.append(p)
             grid.append(row)
 
-        out_comb = os.path.join(combined_dir, f"y2_{model_name}_combined_reliability_3x4.png")
+        out_comb = os.path.join(combined_dir, f"y3_{model_name}_combined_reliability_3x4.png")
         combine_grid(
             grid, out_comb,
-            title=f"Reliability Curves Before vs After Calibration — Model: {MODEL_DISPLAY_NAMES[model_name]} (y2 Target)",
+            title=f"Reliability Curves Before vs After Calibration — Model: {MODEL_DISPLAY_NAMES[model_name]} (y3 Target)",
             tile_w=580, tile_h=520,
             row_labels=row_labels, col_labels=col_labels
         )
