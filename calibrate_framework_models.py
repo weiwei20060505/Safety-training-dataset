@@ -145,29 +145,30 @@ def main():
             X_t1 = split_t1['X_3d'][:, layer_idx, :]
             X_t1_pca = pca.transform(scaler.transform(X_t1))
             y1_t1, y2_t1 = split_t1['y1'], split_t1['y2']
+            y3_t1 = (y1_t1 == y2_t1).astype(int)
 
             raw_s_t1 = model.predict_proba(X_t1_pca, y1_t1)[:, 1]
 
-            # 擬合 PAVA 演算法 (Isotonic Regression) — Fit on Test 1
+            # 擬合 PAVA 演算法 (Isotonic Regression) — Fit on Test 1 Target: y3 (Consistency)
             # 1. 全域 PAVA
             iso_overall = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
-            iso_overall.fit(raw_s_t1, y2_t1)
+            iso_overall.fit(raw_s_t1, y3_t1)
 
-            # 2. y1=0 Subgroup PAVA
+            # 2. y1=0 Subgroup PAVA (單調遞減擬合，使 X 軸保持原始 p，紅線從左上至右下)
             mask0_t1 = (y1_t1 == 0)
-            iso_h0 = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
-            if np.sum(mask0_t1) > 0 and len(np.unique(y2_t1[mask0_t1])) > 1:
-                iso_h0.fit(raw_s_t1[mask0_t1], y2_t1[mask0_t1])
+            iso_h0 = IsotonicRegression(out_of_bounds='clip', increasing=False, y_min=0.0, y_max=1.0)
+            if np.sum(mask0_t1) > 0 and len(np.unique(y3_t1[mask0_t1])) > 1:
+                iso_h0.fit(raw_s_t1[mask0_t1], y3_t1[mask0_t1])
             else:
-                iso_h0.fit(raw_s_t1, y2_t1)
+                iso_h0.fit(raw_s_t1, y3_t1)
 
-            # 3. y1=1 Subgroup PAVA
+            # 3. y1=1 Subgroup PAVA (單調遞增擬合，藍線從左下至右上)
             mask1_t1 = (y1_t1 == 1)
-            iso_h1 = IsotonicRegression(out_of_bounds='clip', y_min=0.0, y_max=1.0)
-            if np.sum(mask1_t1) > 0 and len(np.unique(y2_t1[mask1_t1])) > 1:
-                iso_h1.fit(raw_s_t1[mask1_t1], y2_t1[mask1_t1])
+            iso_h1 = IsotonicRegression(out_of_bounds='clip', increasing=True, y_min=0.0, y_max=1.0)
+            if np.sum(mask1_t1) > 0 and len(np.unique(y3_t1[mask1_t1])) > 1:
+                iso_h1.fit(raw_s_t1[mask1_t1], y3_t1[mask1_t1])
             else:
-                iso_h1.fit(raw_s_t1, y2_t1)
+                iso_h1.fit(raw_s_t1, y3_t1)
 
             calibration_data['layers'][layer][model_name] = {}
 
@@ -176,12 +177,13 @@ def main():
                 X_sp_3d = split_info['X_3d']
                 y1_sp = split_info['y1']
                 y2_sp = split_info['y2']
+                y3_sp = (y1_sp == y2_sp).astype(int)
 
                 X_sp = X_sp_3d[:, layer_idx, :]
                 X_sp_scaled = scaler.transform(X_sp)
                 X_sp_pca = pca.transform(X_sp_scaled)
 
-                # Raw score
+                # Raw score (無 X 軸翻轉，保持原始預測分數 p)
                 s_raw = model.predict_proba(X_sp_pca, y1_sp)[:, 1]
 
                 # Calibrated probabilities (PAVA)
@@ -195,10 +197,10 @@ def main():
                 if np.sum(mask1_sp) > 0:
                     prob_cal_split[mask1_sp] = iso_h1.transform(s_raw[mask1_sp])
 
-                # 指標計算
-                m_raw = calculate_all_metrics(y2_sp, s_raw)
-                m_cal_ov = calculate_all_metrics(y2_sp, prob_cal_overall)
-                m_cal_sp = calculate_all_metrics(y2_sp, prob_cal_split)
+                # 指標計算 (針對 y3 一致性標籤)
+                m_raw = calculate_all_metrics(y3_sp, s_raw)
+                m_cal_ov = calculate_all_metrics(y3_sp, prob_cal_overall)
+                m_cal_sp = calculate_all_metrics(y3_sp, prob_cal_split)
 
                 brier_impr_ov = (m_raw['brier'] - m_cal_ov['brier']) / m_raw['brier'] if m_raw['brier'] > 0 else 0.0
                 brier_impr_sp = (m_raw['brier'] - m_cal_sp['brier']) / m_raw['brier'] if m_raw['brier'] > 0 else 0.0
@@ -224,6 +226,7 @@ def main():
                 calibration_data['layers'][layer][model_name][split_name] = {
                     'y1': y1_sp,
                     'y2': y2_sp,
+                    'y3': y3_sp,
                     's_raw': s_raw,
                     'prob_cal_overall': prob_cal_overall,
                     'prob_cal_split': prob_cal_split,
@@ -235,7 +238,7 @@ def main():
                     'metrics_cal_split': m_cal_sp
                 }
 
-                print(f"  │    └─ [{split_name:6s}] Brier Raw: {m_raw['brier']:.4f} ➔ PAVA Cal: {m_cal_sp['brier']:.4f} (改善: {brier_impr_sp:.2%}) | Rel: {m_cal_sp['reliability']:.4f}")
+                print(f"  │    └─ [{split_name:6s}] Brier Raw: {m_raw['brier']:.4f} -> PAVA Cal: {m_cal_sp['brier']:.4f} (改善: {brier_impr_sp:.2%}) | Rel: {m_cal_sp['reliability']:.4f}")
 
     # 儲存 CSV 與 joblib 數據
     df_res = pd.DataFrame(calibration_records)

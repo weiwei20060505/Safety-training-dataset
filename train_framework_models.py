@@ -108,8 +108,8 @@ def main():
 
         # 4 種模型實體定義
         models_dict = {
-            "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=4, num_leaves=15, n_estimators=100, learning_rate=0.05, random_state=42),
-            "Feature129_LGBM": Feature129LGBMClassifier(max_depth=4, num_leaves=15, n_estimators=100, learning_rate=0.05, random_state=42),
+            "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42),
+            "Feature129_LGBM": Feature129LGBMClassifier(max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42),
             "YHead_MLP": YHeadMLPPyTorchClassifier(input_dim=128, epochs=40, batch_size=64, lr=1e-3, random_state=42),
             "SingleHead129_MLP": SingleHead129MLPPyTorchClassifier(input_dim=128, epochs=40, batch_size=64, lr=1e-3, random_state=42)
         }

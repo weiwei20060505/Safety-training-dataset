@@ -31,7 +31,7 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
     將 y1 作為第 0 個特徵插入特徵矩陣 [y1, X]，利用 forcedsplits_filename 強迫所有決策樹
     在 Root Node (Depth 0) 必須依據 y1 <= 0.5 進行切分。
     """
-    def __init__(self, max_depth=4, num_leaves=15, n_estimators=100, learning_rate=0.05, random_state=42):
+    def __init__(self, max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42):
         self.max_depth = max_depth
         self.num_leaves = num_leaves
         self.n_estimators = n_estimators
@@ -123,7 +123,7 @@ class Feature129LGBMClassifier(BaseEstimator, ClassifierMixin):
     將 y1 作為第 129 維度 (Column 0) 與 128 維隱藏狀態併入標準 LGB 模型，
     不加強迫切割，由資訊增益 (Information Gain) 自由尋找 y1 與特徵之切分點。
     """
-    def __init__(self, max_depth=4, num_leaves=15, n_estimators=100, learning_rate=0.05, random_state=42):
+    def __init__(self, max_depth=5, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42):
         self.max_depth = max_depth
         self.num_leaves = num_leaves
         self.n_estimators = n_estimators
