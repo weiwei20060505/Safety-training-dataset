@@ -154,8 +154,8 @@ class FeaturePlusY1LGBMClassifier(BaseEstimator, ClassifierMixin):
             'reg_alpha': self.reg_alpha,
             'reg_lambda': self.reg_lambda,
             'random_state': self.random_state,
-            'min_data_in_leaf': 20,
-            'min_child_samples': 20,
+            'min_data_in_leaf': 5,
+            'min_child_samples': 5,
             'verbosity': -1,
             'is_unbalance': False
         }

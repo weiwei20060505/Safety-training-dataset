@@ -10,10 +10,18 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from unified_train import DataPreprocessor
 import utils_calibration
 
+import argparse
+
 def main():
-    base_dir = "results/v1_baseline/safety_guardrails_evaluation"
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_pca', action='store_true', default=True)
+    parser.add_argument('--no_pca', action='store_false', dest='use_pca')
+    args = parser.parse_args()
+    pca_status = "with_pca" if args.use_pca else "without_pca"
+    
+    base_dir = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}"
     cache_dir = os.path.join(base_dir, "cache")
-    models_calib_dir = "models/calibrated_isotonic"
+    models_calib_dir = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}/models/calibrated_isotonic"
     
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(models_calib_dir, exist_ok=True)
@@ -76,7 +84,7 @@ def main():
             }
             
             for model_name in models_list:
-                model_path = f"results/v1_baseline/unified_training/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
+                model_path = f"results/v1_baseline/unified_training/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
                 if not os.path.exists(model_path):
                     continue
                     

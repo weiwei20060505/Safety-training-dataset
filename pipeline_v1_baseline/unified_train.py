@@ -148,8 +148,7 @@ class UnifiedModelTrainer:
         X_val_scaled = scaler.transform(X_val)
         X_test_scaled = scaler.transform(X_test)
         
-        sampler = RandomUnderSampler(random_state=42)
-        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        X_train_res, y_train_res = X_train_scaled, np.array(y_train)
         
         if self.use_pca:
             pca = PCA(n_components=128, random_state=42)
@@ -194,16 +193,17 @@ class UnifiedModelTrainer:
                 end_idx = min(start_idx + batch_size, len(X_train_pca))
                 clf.partial_fit(X_shuffled[start_idx:end_idx], y_shuffled[start_idx:end_idx], classes=classes)
                 
-            train_preds = clf.predict(X_train_pca)
+            sub_idx = min(2000, len(X_train_pca))
+            train_preds = clf.predict(X_train_pca[:sub_idx])
             val_preds = clf.predict(X_val_pca)
-            train_acc = accuracy_score(y_train_res, train_preds)
+            train_acc = accuracy_score(y_train_res[:sub_idx], train_preds)
             val_acc = accuracy_score(y_val, val_preds)
-            train_bal_acc = balanced_accuracy_score(y_train_res, train_preds)
+            train_bal_acc = balanced_accuracy_score(y_train_res[:sub_idx], train_preds)
             val_bal_acc = balanced_accuracy_score(y_val, val_preds)
 
-            train_proba = clf.predict_proba(X_train_pca)
+            train_proba = clf.predict_proba(X_train_pca[:sub_idx])
             val_proba = clf.predict_proba(X_val_pca)
-            train_loss = log_loss(y_train_res, train_proba, labels=classes)
+            train_loss = log_loss(y_train_res[:sub_idx], train_proba, labels=classes)
             val_loss = log_loss(y_val, val_proba, labels=classes)
 
             history['sizes'].append(epoch + 1)
@@ -253,8 +253,7 @@ class UnifiedModelTrainer:
         X_val_scaled = scaler.transform(X_val)
         X_test_scaled = scaler.transform(X_test)
         
-        sampler = RandomUnderSampler(random_state=42)
-        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        X_train_res, y_train_res = X_train_scaled, np.array(y_train)
         
         if self.use_pca:
             pca = PCA(n_components=128, random_state=42)
@@ -287,16 +286,17 @@ class UnifiedModelTrainer:
                 end_idx = min(start_idx + batch_size, len(X_train_pca))
                 clf.partial_fit(X_shuffled[start_idx:end_idx], y_shuffled[start_idx:end_idx], classes=classes)
                 
-            train_preds = clf.predict(X_train_pca)
+            sub_idx = min(2000, len(X_train_pca))
+            train_preds = clf.predict(X_train_pca[:sub_idx])
             val_preds = clf.predict(X_val_pca)
-            train_acc = accuracy_score(y_train_res, train_preds)
+            train_acc = accuracy_score(y_train_res[:sub_idx], train_preds)
             val_acc = accuracy_score(y_val, val_preds)
-            train_bal_acc = balanced_accuracy_score(y_train_res, train_preds)
+            train_bal_acc = balanced_accuracy_score(y_train_res[:sub_idx], train_preds)
             val_bal_acc = balanced_accuracy_score(y_val, val_preds)
 
-            train_proba = clf.predict_proba(X_train_pca)
+            train_proba = clf.predict_proba(X_train_pca[:sub_idx])
             val_proba = clf.predict_proba(X_val_pca)
-            train_loss = log_loss(y_train_res, train_proba, labels=classes)
+            train_loss = log_loss(y_train_res[:sub_idx], train_proba, labels=classes)
             val_loss = log_loss(y_val, val_proba, labels=classes)
 
             history['sizes'].append(epoch + 1)
@@ -346,8 +346,7 @@ class UnifiedModelTrainer:
         X_val_scaled = scaler.transform(X_val)
         X_test_scaled = scaler.transform(X_test)
         
-        sampler = RandomUnderSampler(random_state=42)
-        X_train_res, y_train_res = sampler.fit_resample(X_train_scaled, y_train)
+        X_train_res, y_train_res = X_train_scaled, y_train
         
         if self.use_pca:
             pca = PCA(n_components=128, random_state=42)
@@ -361,8 +360,8 @@ class UnifiedModelTrainer:
             X_test_pca = X_test_scaled
         
         clf = lgb.LGBMClassifier(
-            n_estimators=100, 
-            learning_rate=0.05, 
+            n_estimators=1000, 
+            learning_rate=0.03, 
             random_state=42, 
             max_depth=4,
             num_leaves=31,
@@ -377,14 +376,15 @@ class UnifiedModelTrainer:
             score = balanced_accuracy_score(y_true, y_pred_binary)
             return 'balanced_accuracy', score, True
         
-        # 利用 eval_metric 紀錄訓練過程的 binary_error (錯誤率) 與 binary_logloss，跑滿 100 棵樹
+        # 利用 eval_metric 紀錄訓練過程，最長跑 500 棵樹，50 輪 validation loss 未改善即早停
         clf.fit(
             X_train_pca, y_train_res,
             eval_set=[(X_train_pca, y_train_res), (X_val_pca, y_val)],
             eval_names=['train', 'val'],
             eval_metric=['binary_error', 'binary_logloss', lgb_balanced_accuracy],
             callbacks=[
-                lgb.log_evaluation(period=0)
+                lgb.log_evaluation(period=0),
+                lgb.early_stopping(stopping_rounds=50, verbose=False)
             ]
         )
 
@@ -435,8 +435,7 @@ class UnifiedModelTrainer:
         print(f"\n  [LR] 訓練 {y_name} 模型 (評估 5 份資料量)...")
         
         steps = [
-            ('scaler', StandardScaler()),
-            ('sampler', RandomUnderSampler(random_state=42))
+            ('scaler', StandardScaler())
         ]
         if self.use_pca:
             steps.append(('pca', PCA(n_components=128, random_state=42)))
@@ -444,8 +443,8 @@ class UnifiedModelTrainer:
         pipeline = ImbPipeline(steps)
 
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=2,
-            train_sizes=np.linspace(0.2, 1.0, 5)
+            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=-1,
+            train_sizes=np.linspace(0.33, 1.0, 3)
         )
         lc_history = {
             'sizes': train_sizes,
@@ -454,8 +453,8 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=2,
-            train_sizes=np.linspace(0.2, 1.0, 5)
+            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=-1,
+            train_sizes=np.linspace(0.33, 1.0, 3)
         )
         bal_lc_history = {
             'sizes': train_sizes,
@@ -473,17 +472,16 @@ class UnifiedModelTrainer:
         print(f"\n  [RF] 訓練 {y_name} 模型 (評估 5 份資料量)...")
         
         steps = [
-            ('scaler', StandardScaler()),
-            ('sampler', RandomUnderSampler(random_state=42))
+            ('scaler', StandardScaler())
         ]
         if self.use_pca:
             steps.append(('pca', PCA(n_components=128, random_state=42)))
-        steps.append(('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=2)))
+        steps.append(('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)))
         pipeline = ImbPipeline(steps)
         
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='accuracy', n_jobs=2,
-            train_sizes=np.linspace(0.2, 1.0, 5)
+            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=-1,
+            train_sizes=np.linspace(0.33, 1.0, 3)
         )
         lc_history = {
             'sizes': train_sizes,
@@ -492,8 +490,8 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=5, scoring='balanced_accuracy', n_jobs=2,
-            train_sizes=np.linspace(0.2, 1.0, 5)
+            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=-1,
+            train_sizes=np.linspace(0.33, 1.0, 3)
         )
         bal_lc_history = {
             'sizes': train_sizes,
@@ -782,48 +780,56 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA')
     parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA')
+    parser.add_argument('--train_data', type=str, required=True, help='Path to training data (e.g. data/v1_train_10000.pkl)')
+    parser.add_argument('--val_data', type=str, required=True, help='Path to validation data (e.g. data/v1_val.pkl)')
+    parser.add_argument('--output_suffix', type=str, default="", help='Suffix for output directory')
     args = parser.parse_args()
     
     pca_status = "with_pca" if args.use_pca else "without_pca"
+    suffix = f"_{args.output_suffix}" if args.output_suffix else ""
 
     print("\n" + "="*80)
-    print(f"雙軌機器學習模型訓練框架 - 開始執行 | PCA Mode: {pca_status}")
+    print(f"雙軌機器學習模型訓練框架 (LGB + Y2 專用) - 開始執行 | PCA Mode: {pca_status}")
     print("="*80)
 
-    # 請確保這裡的檔案名稱與你的環境相符
-    DATA_PATH = "data/experiment_results_train_10000.pkl"
-    if not os.path.exists(DATA_PATH):
-        DATA_PATH = "experiment_results_train_10000.pkl"
-    if not os.path.exists(DATA_PATH):
-        DATA_PATH = "experiment_results.pkl"
-    if not os.path.exists(DATA_PATH):
-        print(f"錯誤: 找不到數據檔案。請確保 {DATA_PATH} 存在。")
+    if not os.path.exists(args.train_data) or not os.path.exists(args.val_data):
+        print("錯誤: 找不到數據檔案。")
         sys.exit(1)
 
-    OUTPUT_DIR = f"results/v1_baseline/unified_training/{pca_status}"
+    OUTPUT_DIR = f"results/v1_baseline/unified_training/lgb_y2{suffix}/{pca_status}"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     sys.stdout = DualLogger(os.path.join(OUTPUT_DIR, "training_log.txt"))
 
-    # 讀取資料
-    preprocessor = DataPreprocessor(DATA_PATH)
-    df = preprocessor.load_data()
-    X_3d = preprocessor.extract_features()
-    y1, y2, y3 = preprocessor.create_targets()
+    # Load Train Data
+    print("[1] Loading Train Data...")
+    prep_train = DataPreprocessor(args.train_data)
+    prep_train.load_data()
+    X_3d_train = prep_train.extract_features()
+    _, y2_train, _ = prep_train.create_targets()
+    
+    # Load Val Data
+    print("[2] Loading Val Data...")
+    prep_val = DataPreprocessor(args.val_data)
+    prep_val.load_data()
+    X_3d_val = prep_val.extract_features()
+    _, y2_val, _ = prep_val.create_targets()
 
-    num_layers = X_3d.shape[1]
+    num_layers = X_3d_train.shape[1]
     
     for layer_idx in range(num_layers):
         print(f"\n" + "="*60)
         print(f"[開始訓練第 {layer_idx + 1} / {num_layers} 層特徵]")
         print("="*60)
         
-        X_2d = X_3d[:, layer_idx, :]
-
-        # 資料分割
-        X_train_y1, X_val_y1, X_test_y1, y_train_y1, y_val_y1, y_test_y1, _ = DataSplitter.split_and_scale(X_2d, y1, layer_idx)
-        X_train_y2, X_val_y2, X_test_y2, y_train_y2, y_val_y2, y_test_y2, _ = DataSplitter.split_and_scale(X_2d, y2, layer_idx)
-        X_train_y3, X_val_y3, X_test_y3, y_train_y3, y_val_y3, y_test_y3, _ = DataSplitter.split_and_scale(X_2d, y3, layer_idx)
+        X_train_y2 = X_3d_train[:, layer_idx, :]
+        X_val_y2 = X_3d_val[:, layer_idx, :]
+        
+        # Test set is the same as validation set for now since we just want to monitor overfitting
+        X_test_y2 = X_val_y2
+        y_train_y2 = y2_train
+        y_val_y2 = y2_val
+        y_test_y2 = y2_val
 
         layer_output_dir = os.path.join(OUTPUT_DIR, f"layer_{layer_idx+1}")
         trainer = UnifiedModelTrainer(output_dir=layer_output_dir, use_pca=args.use_pca)
@@ -841,21 +847,6 @@ def main():
         for model_name, train_func in models_to_train:
             results = ModelResults(model_name)
             
-            # 訓練 y1
-            clf_y1_best, clf_y1_last, y1_pred, y1_proba, epoch_hist_y1, lc_hist_y1, bal_lc_hist_y1 = train_func(
-                X_train_y1, X_val_y1, X_test_y1, y_train_y1, y_val_y1, y_test_y1, 'Y1'
-            )
-            results.y1_epoch_history = epoch_hist_y1
-            results.y1_lc_history = lc_hist_y1
-            results.y1_bal_lc_history = bal_lc_hist_y1
-            results.y1_metrics = MetricsCalculator.calculate_metrics(y_test_y1, y1_pred, y1_proba)
-            results.y1_test_true = y_test_y1
-            results.y1_test_proba = y1_proba
-            
-            # 保存 y1 模型：分別保存 best 和 last
-            joblib.dump(clf_y1_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y1_best.pkl"))
-            joblib.dump(clf_y1_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y1_last.pkl"))
-            
             # 訓練 y2
             clf_y2_best, clf_y2_last, y2_pred, y2_proba, epoch_hist_y2, lc_hist_y2, bal_lc_hist_y2 = train_func(
                 X_train_y2, X_val_y2, X_test_y2, y_train_y2, y_val_y2, y_test_y2, 'Y2'
@@ -867,73 +858,30 @@ def main():
             results.y2_test_true = y_test_y2
             results.y2_test_proba = y2_proba
             
-            # 保存 y2 模型：分別保存 best 和 last
+            # 保存 y2 模型
             joblib.dump(clf_y2_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_best.pkl"))
             joblib.dump(clf_y2_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_last.pkl"))
-            
-            # 訓練 y3
-            clf_y3_best, clf_y3_last, y3_pred, y3_proba, epoch_hist_y3, lc_hist_y3, bal_lc_hist_y3 = train_func(
-                X_train_y3, X_val_y3, X_test_y3, y_train_y3, y_val_y3, y_test_y3, 'Y3'
-            )
-            results.y3_epoch_history = epoch_hist_y3
-            results.y3_lc_history = lc_hist_y3
-            results.y3_bal_lc_history = bal_lc_hist_y3
-            results.y3_metrics = MetricsCalculator.calculate_metrics(y_test_y3, y3_pred, y3_proba)
-            results.y3_test_true = y_test_y3
-            results.y3_test_proba = y3_proba
-            
-            # 保存 y3 模型：分別保存 best 和 last
-            joblib.dump(clf_y3_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y3_best.pkl"))
-            joblib.dump(clf_y3_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y3_last.pkl"))
             
             all_results[model_name] = results
 
         # 輸出指標表格
-        print(f"\n📊 [第 {layer_idx+1} 層] Y1 (模型回覆安全性任務) 性能指標:")
-        metrics_df_y1 = pd.DataFrame({m: all_results[m].y1_metrics for m in all_results}).T
-        print(metrics_df_y1.to_string())
-
         print(f"\n📊 [第 {layer_idx+1} 層] Y2 (提示詞有害性任務) 性能指標:")
         metrics_df_y2 = pd.DataFrame({m: all_results[m].y2_metrics for m in all_results}).T
         print(metrics_df_y2.to_string())
 
-        print(f"\n📊 [第 {layer_idx+1} 層] Y3 (一致性任務) 性能指標:")
-        metrics_df_y3 = pd.DataFrame({m: all_results[m].y3_metrics for m in all_results}).T
-        print(metrics_df_y3.to_string())
-
-        # 1. 先定義好三個子資料夾的路徑
-        y1_img_dir = os.path.join(layer_output_dir, "y1_png")
         y2_img_dir = os.path.join(layer_output_dir, "y2_png")
-        y3_img_dir = os.path.join(layer_output_dir, "y3_png")
-        
-        # 2. 自動建立資料夾 (exist_ok=True 會自動處理已存在的情況，不報錯)
-        os.makedirs(y1_img_dir, exist_ok=True)
         os.makedirs(y2_img_dir, exist_ok=True)
-        os.makedirs(y3_img_dir, exist_ok=True)
         
-        # 3. 生成進階曲線與對比圖表 (直接傳入變數，程式碼超乾淨)
+        # 生成進階曲線與對比圖表
         print(f"\n[生成圖表] 正在繪製第 {layer_idx+1} 層的學習曲線與模型對比圖...")
         
-        # Y1 的圖表
-        PlotGenerator.plot_all_curves(all_results, y1_img_dir, 'y1', layer_idx)
-        PlotGenerator.plot_model_comparison(all_results, y1_img_dir, 'y1', layer_idx)
-        PlotGenerator.plot_roc_curve(all_results, y1_img_dir, 'y1', layer_idx)
-        PlotGenerator.plot_balanced_accuracy_curves(all_results, y1_img_dir, 'y1', layer_idx)
-        
-        # Y2 的圖表
         PlotGenerator.plot_all_curves(all_results, y2_img_dir, 'y2', layer_idx)
         PlotGenerator.plot_model_comparison(all_results, y2_img_dir, 'y2', layer_idx)
         PlotGenerator.plot_roc_curve(all_results, y2_img_dir, 'y2', layer_idx)
         PlotGenerator.plot_balanced_accuracy_curves(all_results, y2_img_dir, 'y2', layer_idx)
-        
-        # Y3 的圖表
-        PlotGenerator.plot_all_curves(all_results, y3_img_dir, 'y3', layer_idx)
-        PlotGenerator.plot_model_comparison(all_results, y3_img_dir, 'y3', layer_idx)
-        PlotGenerator.plot_roc_curve(all_results, y3_img_dir, 'y3', layer_idx)
-        PlotGenerator.plot_balanced_accuracy_curves(all_results, y3_img_dir, 'y3', layer_idx)
-        
-    print(f"\n[OK] 所有 {num_layers} 層特徵的模型訓練、評估與繪圖已全部完成！")
+
+    print(f"\n[OK] 所有 {num_layers} 層特徵的 LGB Y2 模型訓練、評估與繪圖已全部完成！")
     print(f"結果與圖表已儲存至 {OUTPUT_DIR}/")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

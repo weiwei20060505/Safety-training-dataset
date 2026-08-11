@@ -465,7 +465,7 @@ def combine_09_roc_curves(targets: list[str]) -> None:
         grid: list[list[str | None]] = []
         row: list[str | None] = []
         for layer in ALL_LAYERS:
-            path = f"results/v1_baseline/unified_training/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
+            path = f"results/v1_baseline/unified_training/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
             row.append(path)
         grid.append(row)
 

@@ -586,10 +586,13 @@ def main():
     parser.add_argument("--model", choices=['SGD', 'MLP', 'LGB', 'LR', 'RF', 'all'], default='all', help="Classifier model to plot")
     parser.add_argument("--chart", choices=['all', 'reliability', 'reliability_combined', 'step_mapping', 'brier_components', 'quadrant_hist', 'score_hist', 'trends', 'trends_split_y', 'joint_calibration'],
                         default='all', help="Chart type to plot")
+    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA')
+    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA')
     args = parser.parse_args()
+    pca_status = "with_pca" if args.use_pca else "without_pca"
     
-    cache_path = "results/v1_baseline/safety_guardrails_evaluation/cache/calibrated_predictions.pkl"
-    metrics_path = "results/v1_baseline/safety_guardrails_evaluation/cache/all_metrics_records.csv"
+    cache_path = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}/cache/calibrated_predictions.pkl"
+    metrics_path = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}/cache/all_metrics_records.csv"
     
     if not os.path.exists(cache_path) or not os.path.exists(metrics_path):
         print("錯誤: 找不到預測值快取或指標日誌。請確保已執行 step2_calibrate.py")
@@ -614,7 +617,7 @@ def main():
         print("\n[繪製指標隨層數變化趨勢折線圖]...")
         for target in targets:
             for split in splits:
-                trend_dir = f"results/v1_baseline/plots/01_Metrics_Trends/{target}/{split}"
+                trend_dir = f"results/v1_baseline/plots/{pca_status}/01_Metrics_Trends/{target}/{split}"
                 brier_path = os.path.join(trend_dir, f"{target}_{split}_brier_score_trend.png")
                 logloss_path = os.path.join(trend_dir, f"{target}_{split}_log_loss_trend.png")
                 
@@ -627,7 +630,7 @@ def main():
         for target in targets:
             for split in splits:
                 for group_val in [0, 1]:
-                    trend_split_dir = f"results/v1_baseline/plots/01_Metrics_Trends_split_y/{target}/{split}"
+                    trend_split_dir = f"results/v1_baseline/plots/{pca_status}/01_Metrics_Trends_split_y/{target}/{split}"
                     brier_path = os.path.join(trend_split_dir, f"{target}_{split}_group{group_val}_brier_score_trend.png")
                     logloss_path = os.path.join(trend_split_dir, f"{target}_{split}_group{group_val}_log_loss_trend.png")
                     
@@ -688,7 +691,7 @@ def main():
                     
                     # (A_combined) Reliability Curve (Combined y1)
                     if 'reliability_combined' in charts:
-                        rel_comb_dir = f"results/v1_baseline/plots/02_Reliability_Curves_combined/{target}/{split}/layer_{layer}"
+                        rel_comb_dir = f"results/v1_baseline/plots/{pca_status}/02_Reliability_Curves_combined/{target}/{split}/layer_{layer}"
                         rel_comb_path = os.path.join(rel_comb_dir, f"{target}_{split}_layer{layer}_{model}_combined_reliability.png")
                         rel_comb_title = f"可靠度對比曲線 (合併組別) | 任務: {target} | 評估集: {split} | 層: {layer}\n模型: {model}"
                         plot_reliability_curve_combined(y_true, score_pre, y_prob_cal, y1_labels, bin_edges, rel_comb_title, rel_comb_path)
@@ -705,21 +708,21 @@ def main():
                         
                         # (A) Reliability Curve (Split y)
                         if 'reliability' in charts:
-                            rel_dir = f"results/v1_baseline/plots/02_Reliability_Curves_split_y/{target}/{split}/layer_{layer}"
+                            rel_dir = f"results/v1_baseline/plots/{pca_status}/02_Reliability_Curves_split_y/{target}/{split}/layer_{layer}"
                             rel_path = os.path.join(rel_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_reliability.png")
                             rel_title = f"可靠度對比曲線 | 任務: {target} | 評估集: {split} | 層: {layer}\n模型: {model} | 分流組別: y1 == {group_val}"
                             plot_reliability_curve(y_true_g, score_pre_g, y_prob_cal_g, bin_edges, rel_title, rel_path)
                             
                         # (B) Step Mapping Bar Chart
                         if 'step_mapping' in charts:
-                            step_dir = f"results/v1_baseline/plots/06_Step_Mappings/{target}/{split}/layer_{layer}"
+                            step_dir = f"results/v1_baseline/plots/{pca_status}/06_Step_Mappings/{target}/{split}/layer_{layer}"
                             step_path = os.path.join(step_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_step_mapping.png")
                             step_title = f"分數映射長條圖 | 任務: {target} | 評估集: {split} | 層: {layer}\n模型: {model} | 分流組別: y1 == {group_val}"
                             plot_step_mapping(score_pre_g, y_prob_cal_g, step_title, step_path)
                             
                         # (C) Brier Components (Dual Subplot Dual y-axis, matching attached sample figure)
                         if 'brier_components' in charts:
-                            comp_dir = f"results/v1_baseline/plots/05_Brier_Components/{target}/{split}/layer_{layer}"
+                            comp_dir = f"results/v1_baseline/plots/{pca_status}/05_Brier_Components/{target}/{split}/layer_{layer}"
                             comp_path = os.path.join(comp_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_brier_components.png")
                             comp_title = f"{model} - Brier 組分與 Bin 樣本佔比 (雙 Y 軸 (Dual Axis))\n{split} | Layer {layer} | {target.upper()} (組別: y1 == {group_val})"
                             rel_ylim_comp, res_ylim_comp = brier_comp_ylims.get((target, model, split), (None, None))
@@ -727,7 +730,7 @@ def main():
                             
                         # (D) Score Histograms
                         if 'score_hist' in charts:
-                            score_dir = f"results/v1_baseline/plots/04_Score_Histograms/{target}/{split}/layer_{layer}"
+                            score_dir = f"results/v1_baseline/plots/{pca_status}/04_Score_Histograms/{target}/{split}/layer_{layer}"
                             score_path = os.path.join(score_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_score_histogram.png")
                             score_title = f"正負樣本預測分數直方圖對比\n任務: {target} | 評估集: {split} | 層: {layer} | 模型: {model} | 組別: y1 == {group_val}"
                             y_tgt_g = y1_labels[group_mask] if target == 'y1' else (y2_labels[group_mask] if target == 'y2' else y_true_g)
@@ -735,19 +738,19 @@ def main():
                             
                         # (F) Joint Calibration Plot
                         if 'joint_calibration' in charts:
-                            joint_dir = f"results/v1_baseline/plots/07_Joint_Calibration/{target}/{split}/layer_{layer}"
+                            joint_dir = f"results/v1_baseline/plots/{pca_status}/07_Joint_Calibration/{target}/{split}/layer_{layer}"
                             joint_path = os.path.join(joint_dir, f"{target}_{split}_layer{layer}_{model}_iso_{group_val}_joint_calibration.png")
                             joint_title = f"Histogram and Scatter Plot of Confidence\nTask: {target.upper()} | Split: {split} | Layer: {layer} | Model: {model} | Group: y1 == {group_val}"
                             plot_joint_calibration(score_pre_g, y_prob_cal_g, y_true_g, joint_title, joint_path)
                             
                     # (E) Quadrant Histograms
                     if 'quadrant_hist' in charts:
-                        quad_dir = f"results/v1_baseline/plots/03_Quadrant_Histograms/{target}/{split}/layer_{layer}"
+                        quad_dir = f"results/v1_baseline/plots/{pca_status}/03_Quadrant_Histograms/{target}/{split}/layer_{layer}"
                         quad_path = os.path.join(quad_dir, f"{target}_{split}_layer{layer}_{model}_quadrant_histogram.png")
                         quad_title = f"四象限預測置信度直方圖\n任務: {target} | 評估集: {split} | 層: {layer} | 模型: {model}"
                         plot_quadrant_histograms(score_pre, y_prob_cal, y1_labels, y2_labels, y_true, quad_title, quad_path)
 
-    print("\n[OK] 所選圖表繪製流程完成！(圖表皆已儲存至 results/v1_baseline/plots/)")
+    print("\n[OK] 所選圖表繪製流程完成！(圖表皆已儲存至 results/v1_baseline/plots/{pca_status}/)")
 
 if __name__ == '__main__':
     main()

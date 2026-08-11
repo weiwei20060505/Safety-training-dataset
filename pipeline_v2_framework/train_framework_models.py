@@ -121,9 +121,12 @@ def main():
 
         input_dim = X_tr_pca.shape[1]
 
-        # 4 種模型實體定義 (快速測試：只跑 RootSplit_LGBM 且無限制生長)
+        # 4 種模型實體定義
         models_dict = {
             "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=-1, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.0, reg_lambda=0.0, random_state=42),
+            "FeaturePlusY1_LGBM": FeaturePlusY1LGBMClassifier(max_depth=-1, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.0, reg_lambda=0.0, random_state=42),
+            "YHead_MLP": YHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=15, lr=1e-3, batch_size=64, random_state=42),
+            "SingleHead_MLP": SingleHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=15, lr=1e-3, batch_size=64, random_state=42)
         }
 
         val_predictions['layers'][layer] = {}
@@ -172,7 +175,7 @@ def main():
                 print(f"  │    └─ Acc: {acc:.4f} | BalAcc: {bal_acc:.4f} | Prec: {prec:.4f} | Rec: {rec:.4f} | F1: {f1:.4f} | AUC: {auc_val:.4f}")
 
             except Exception as e:
-                print(f"  │    └─ ⚠️ 訓練或評估失敗: {e}")
+                print(f"  │    └─ [Error] 訓練或評估失敗: {e}")
                 import traceback
                 traceback.print_exc()
 
