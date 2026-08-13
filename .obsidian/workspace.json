@@ -185,6 +185,8 @@
   },
   "active": "b581731e17df4362",
   "lastOpenFiles": [
+    "results/v1_baseline/safety_guardrails_evaluation/without_pca/cache/calibrated_predictions.pkl",
+    "results/v1_baseline/safety_guardrails_evaluation/without_pca/cache/all_metrics_records.csv",
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_6/lgb_y2_iso.pkl",
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_5/lgb_y2_iso.pkl",
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_4/lgb_y2_iso.pkl",
@@ -194,8 +196,6 @@
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_1/sgd_y2_iso.pkl",
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_6",
     "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_5",
-    "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_4",
-    "results/v1_baseline/safety_guardrails_evaluation/without_pca/models/calibrated_isotonic/layer_3",
     "results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/without_pca/layer_1/y2_png/learning_curves_data_bal_acc_y2.png",
     "results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/without_pca/layer_1/y2_png/learning_curves_step_bal_acc_y2.png",
     "results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/without_pca/layer_1/y2_png/model_roc_curve_layer_1_y2.png",
