@@ -465,8 +465,16 @@ def combine_09_roc_curves(targets: list[str]) -> None:
         grid: list[list[str | None]] = []
         row: list[str | None] = []
         for layer in ALL_LAYERS:
-            path = f"results/v1_baseline/unified_training/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
-            row.append(path)
+            candidate_roc = [
+                f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png",
+                f"results/v1_baseline/unified_training/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
+            ]
+            found_path = None
+            for p in candidate_roc:
+                if os.path.exists(p):
+                    found_path = p
+                    break
+            row.append(found_path)
         grid.append(row)
 
         out = f"{COMBINED_DIR}/08_ROC_Curves/{target}/combined_{target}_roc_1x6.png"
@@ -529,9 +537,13 @@ def main() -> None:
         default='all',
         help="分類器模型 (預設: all)",
     )
+    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA mode')
+    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Without PCA mode')
     args = parser.parse_args()
     
+    global pca_status, PLOTS_DIR, COMBINED_DIR
     pca_status = "with_pca" if args.use_pca else "without_pca"
+    PLOTS_DIR = f"results/v1_baseline/plots/{pca_status}"
     COMBINED_DIR = f"results/v1_baseline/plots/combined/{pca_status}"
 
     # 解析過濾條件

@@ -443,7 +443,7 @@ class UnifiedModelTrainer:
         pipeline = ImbPipeline(steps)
 
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=2,
             train_sizes=np.linspace(0.33, 1.0, 3)
         )
         lc_history = {
@@ -453,7 +453,7 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=2,
             train_sizes=np.linspace(0.33, 1.0, 3)
         )
         bal_lc_history = {
@@ -476,11 +476,11 @@ class UnifiedModelTrainer:
         ]
         if self.use_pca:
             steps.append(('pca', PCA(n_components=128, random_state=42)))
-        steps.append(('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)))
+        steps.append(('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=4)))
         pipeline = ImbPipeline(steps)
         
         train_sizes, train_scores, val_scores = learning_curve(
-            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=3, scoring='accuracy', n_jobs=2,
             train_sizes=np.linspace(0.33, 1.0, 3)
         )
         lc_history = {
@@ -490,7 +490,7 @@ class UnifiedModelTrainer:
         }
 
         train_sizes, train_scores_bal, val_scores_bal = learning_curve(
-            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=-1,
+            pipeline, X_train, y_train, cv=3, scoring='balanced_accuracy', n_jobs=2,
             train_sizes=np.linspace(0.33, 1.0, 3)
         )
         bal_lc_history = {
@@ -847,6 +847,23 @@ def main():
         for model_name, train_func in models_to_train:
             results = ModelResults(model_name)
             
+            best_model_path = os.path.join(layer_output_dir, f"{model_name.lower()}_y2_best.pkl")
+            last_model_path = os.path.join(layer_output_dir, f"{model_name.lower()}_y2_last.pkl")
+
+            if os.path.exists(best_model_path) and os.path.exists(last_model_path):
+                print(f"  ├─ [Layer {layer_idx+1}] {model_name} 已經訓練完成 ({best_model_path})，直接載入跳過...")
+                try:
+                    clf_y2_best = joblib.load(best_model_path)
+                    y2_proba = clf_y2_best.predict_proba(X_test_y2)[:, 1]
+                    y2_pred = (y2_proba >= 0.5).astype(int)
+                    results.y2_metrics = MetricsCalculator.calculate_metrics(y_test_y2, y2_pred, y2_proba)
+                    results.y2_test_true = y_test_y2
+                    results.y2_test_proba = y2_proba
+                    all_results[model_name] = results
+                    continue
+                except Exception as e:
+                    print(f"  │    └─ 載入現有模型失敗，將重新訓練: {e}")
+
             # 訓練 y2
             clf_y2_best, clf_y2_last, y2_pred, y2_proba, epoch_hist_y2, lc_hist_y2, bal_lc_hist_y2 = train_func(
                 X_train_y2, X_val_y2, X_test_y2, y_train_y2, y_val_y2, y_test_y2, 'Y2'
@@ -859,8 +876,8 @@ def main():
             results.y2_test_proba = y2_proba
             
             # 保存 y2 模型
-            joblib.dump(clf_y2_best, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_best.pkl"))
-            joblib.dump(clf_y2_last, os.path.join(layer_output_dir, f"{model_name.lower()}_y2_last.pkl"))
+            joblib.dump(clf_y2_best, best_model_path)
+            joblib.dump(clf_y2_last, last_model_path)
             
             all_results[model_name] = results
 

@@ -84,8 +84,17 @@ def main():
             }
             
             for model_name in models_list:
-                model_path = f"results/v1_baseline/unified_training/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
-                if not os.path.exists(model_path):
+                candidate_paths = [
+                    f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
+                    f"results/v1_baseline/unified_training/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
+                    f"results/v1_baseline/unified_training/lgb_y2_78k_ultimate/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
+                ]
+                model_path = None
+                for p in candidate_paths:
+                    if os.path.exists(p):
+                        model_path = p
+                        break
+                if model_path is None:
                     continue
                     
                 clf = joblib.load(model_path)
