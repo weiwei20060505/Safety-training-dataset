@@ -1,10 +1,10 @@
 """
 8月6日 LLM 隱藏狀態機率校正與元評估框架 — 階段二核心可視化圖表 (V2)
 ======================================================================
-針對使用者指定的 3 大圖表類型繪製高清圖片，完全還原 results/plots/combined 樣式：
+針對 Layer 6 繪製高清圖片：
 1. 07_Joint_Calibration：Histogram and Scatter Plot of Confidence 雙 Y 軸聯合校正圖
-2. 01_Metrics_Trends_split_y：Brier Score 與 Log Loss 隨層數變化趨勢圖
-3. 02_Reliability_Curves_combined：4 個模型獨自繪製校正前後 y1=0 / y1=1 組合大圖
+2. 01_Metrics_Trends_split_y：Brier Score 與 Log Loss 隨層數變化趨勢圖 (目前僅 1 層)
+3. 02_Reliability_Curves_combined：6 個模型獨自繪製校正前後 y1=0 / y1=1 組合大圖
 """
 
 import os
@@ -27,26 +27,39 @@ plt.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'DejaVu Sans'
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
-ALL_LAYERS = [3, 4, 5, 6]
+ALL_LAYERS = [6]
 ALL_SPLITS = ['test1', 'test2', 'eval']
-ALL_MODELS = ['RootSplit_LGBM', 'FeaturePlusY1_LGBM', 'YHead_MLP', 'SingleHead_MLP']
+ALL_MODELS = [
+    'LR_Hard_Dual',
+    'LR_Interaction',
+    'LGB_Hard_Dual',
+    'RootSplit_LGBM',
+    'MLP_Hard_Dual',
+    'YHead_MLP'
+]
 MODEL_DISPLAY_NAMES = {
-    'RootSplit_LGBM': 'RootSplit-LGBM',
-    'FeaturePlusY1_LGBM': 'FeaturePlusY1-LGBM',
-    'YHead_MLP': 'YHead-MLP',
-    'SingleHead_MLP': 'SingleHead-MLP'
+    'LR_Hard_Dual': 'LR-HardDual',
+    'LR_Interaction': 'LR-Interaction',
+    'LGB_Hard_Dual': 'LGB-HardDual',
+    'RootSplit_LGBM': 'LGB-RootSplit',
+    'MLP_Hard_Dual': 'MLP-HardDual',
+    'YHead_MLP': 'MLP-YHead'
 }
 MODEL_COLORS = {
-    'RootSplit_LGBM': '#4C72B0',    # Blue
-    'FeaturePlusY1_LGBM': '#55A868',   # Green
-    'YHead_MLP': '#C44E52',         # Red
-    'SingleHead_MLP': '#8172B3'  # Purple
+    'LR_Hard_Dual': '#1f77b4',       # Blue
+    'LR_Interaction': '#ff7f0e',     # Orange
+    'LGB_Hard_Dual': '#2ca02c',      # Green
+    'RootSplit_LGBM': '#d62728',     # Red
+    'MLP_Hard_Dual': '#9467bd',      # Purple
+    'YHead_MLP': '#8c564b'           # Brown
 }
 MODEL_MARKERS = {
-    'RootSplit_LGBM': 'o',
-    'FeaturePlusY1_LGBM': 's',
-    'YHead_MLP': '^',
-    'SingleHead_MLP': 'D'
+    'LR_Hard_Dual': 'o',
+    'LR_Interaction': 'v',
+    'LGB_Hard_Dual': 's',
+    'RootSplit_LGBM': 'p',
+    'MLP_Hard_Dual': '*',
+    'YHead_MLP': 'D'
 }
 
 # ─── PIL 拼圖輔助函數 ──────────────────────────────────────────────────────────
@@ -236,30 +249,73 @@ def generate_07_joint_calibration(calib_data, base_output_dir, pca_status):
                     save1 = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group1.png")
                     plot_single_joint_calibration(score_pre[mask1], p_cal[mask1], y3[mask1], title1, save1)
 
-    print("  └─ 單張圖繪製完成，開始按 Split 生成 2×4 組合大圖...")
-    # 拼接大圖 (2 列: group0, group1 × 4 行: Layer 3, 4, 5, 6)
-    col_labels = [f"Layer {l}" for l in ALL_LAYERS]
-    row_labels = ["y1 == 0", "y1 == 1"]
+    print("  └─ 開始按 Group 生成 3×6 組合大圖...")
+    col_labels = [MODEL_DISPLAY_NAMES[m] for m in ALL_MODELS]
+    row_labels = [s.upper() for s in ALL_SPLITS]
+
+    layer = ALL_LAYERS[0] # assuming layer 6 only
+
+    for g in [0, 1]:
+        grid = []
+        for split in ALL_SPLITS:
+            row = []
+            for model_name in ALL_MODELS:
+                p = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group{g}.png")
+                row.append(p)
+            grid.append(row)
+
+        out_comb = os.path.join(combined_dir, f"joint_cal_combined_3x6_group{g}.png")
+        combine_grid(
+            grid, out_comb,
+            title=f"Joint Calibration 3x6 Overview (Group: y1 == {g}) | ({pca_status})",
+            tile_w=650, tile_h=650,
+            row_labels=row_labels,
+            col_labels=col_labels
+        )
+
+    print("  └─ 開始按模型生成 2×3 組合大圖 (列: y1分群, 欄: 測試集)...")
+    col_labels_2x3 = [s.upper() for s in ALL_SPLITS]
+    row_labels_2x3 = ["y1 == 0", "y1 == 1"]
+
+    for model_name in ALL_MODELS:
+        grid_2x3 = []
+        for g in [0, 1]:
+            row = []
+            for split in ALL_SPLITS:
+                p = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group{g}.png")
+                row.append(p)
+            grid_2x3.append(row)
+        
+        out_comb_2x3 = os.path.join(combined_dir, f"joint_cal_combined_2x3_{model_name}.png")
+        combine_grid(
+            grid_2x3, out_comb_2x3,
+            title=f"Joint Calibration Across Splits (y1=0 vs y1=1) — Model: {MODEL_DISPLAY_NAMES[model_name]} | ({pca_status})",
+            tile_w=650, tile_h=650,
+            row_labels=row_labels_2x3,
+            col_labels=col_labels_2x3
+        )
+
+    print("  └─ 開始按測試集生成 2×6 組合大圖 (列: y1分群, 欄: 6種模型)...")
+    col_labels_2x6 = [MODEL_DISPLAY_NAMES[m] for m in ALL_MODELS]
+    row_labels_2x6 = ["y1 == 0", "y1 == 1"]
 
     for split in ALL_SPLITS:
-        split_combined_dir = os.path.join(combined_dir, split)
-        for model_name in ALL_MODELS:
-            grid = []
-            for g in [0, 1]:
-                row = []
-                for layer in ALL_LAYERS:
-                    p = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group{g}.png")
-                    row.append(p)
-                grid.append(row)
-
-            out_comb = os.path.join(split_combined_dir, f"joint_cal_combined_{model_name}_2x4.png")
-            combine_grid(
-                grid, out_comb,
-                title=f"Joint Calibration Overview — Model: {MODEL_DISPLAY_NAMES[model_name]} | Split: {split.upper()} ({pca_status})",
-                tile_w=650, tile_h=650,
-                row_labels=row_labels,
-                col_labels=col_labels
-            )
+        grid_2x6 = []
+        for g in [0, 1]:
+            row = []
+            for model_name in ALL_MODELS:
+                p = os.path.join(single_dir, split, f"joint_cal_layer{layer}_{model_name}_group{g}.png")
+                row.append(p)
+            grid_2x6.append(row)
+        
+        out_comb_2x6 = os.path.join(combined_dir, f"joint_cal_combined_2x6_{split}.png")
+        combine_grid(
+            grid_2x6, out_comb_2x6,
+            title=f"Joint Calibration Across Models (y1=0 vs y1=1) — Split: {split.upper()} | ({pca_status})",
+            tile_w=650, tile_h=650,
+            row_labels=row_labels_2x6,
+            col_labels=col_labels_2x6
+        )
 
 
 # ─── 01_Metrics_Trends_split_y (Y 軸全域強制統一) ────────────────────────────
@@ -321,55 +377,54 @@ def generate_01_metrics_trends_split_y(calib_data, base_output_dir, pca_status):
         for g in [0, 1]:
             df_sg = df[(df['split'] == split) & (df['group'] == g)]
 
-            # 1. Brier Trend
-            fig, ax = plt.subplots(figsize=(7.5, 5.5))
+            # 1. Brier Bar Chart
+            fig, ax = plt.subplots(figsize=(8.5, 5.5))
+            x_pos = np.arange(len(ALL_MODELS))
+            brier_vals = []
             for model_name in ALL_MODELS:
-                df_m = df_sg[df_sg['model'] == model_name].sort_values('layer')
-                if df_m.empty:
-                    continue
-                ax.plot(
-                    df_m['layer'], df_m['brier'],
-                    label=MODEL_DISPLAY_NAMES[model_name],
-                    color=MODEL_COLORS[model_name],
-                    marker=MODEL_MARKERS[model_name],
-                    markersize=7, linewidth=2.0, alpha=0.9
-                )
-            ax.set_xticks(ALL_LAYERS)
+                df_m = df_sg[df_sg['model'] == model_name]
+                brier_vals.append(df_m['brier'].values[0] if not df_m.empty else 0)
+            
+            bars = ax.bar(x_pos, brier_vals, color=[MODEL_COLORS[m] for m in ALL_MODELS], alpha=0.85, edgecolor='black', width=0.6)
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([MODEL_DISPLAY_NAMES[m] for m in ALL_MODELS], rotation=15, fontsize=9)
             ax.set_ylim(brier_ylim)
-            ax.set_xlabel('Hidden Layer (3~6)', fontsize=11, fontweight='bold')
             ax.set_ylabel('Brier Score (Lower is Better)', fontsize=11, fontweight='bold')
-            ax.set_title(f'Brier Score Trend (Group: y1 == {g}) | Split: {split.upper()}', fontsize=12, fontweight='bold')
-            ax.grid(True, linestyle='--', alpha=0.3)
-            ax.legend(loc='upper right', fontsize=9)
+            ax.set_title(f'Brier Score Comparison (Group: y1 == {g}) | Split: {split.upper()}', fontsize=12, fontweight='bold')
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            
+            for bar in bars:
+                h = bar.get_height()
+                if h > 0:
+                    ax.annotate(f'{h:.4f}', xy=(bar.get_x() + bar.get_width()/2, h), xytext=(0,3), textcoords='offset points', ha='center', va='bottom', fontsize=9)
+            
             plt.tight_layout()
-
             save_brier = os.path.join(split_single_dir, f"brier_trend_group{g}.png")
             os.makedirs(os.path.dirname(save_brier), exist_ok=True)
             fig.savefig(save_brier, dpi=180, bbox_inches='tight')
             plt.close(fig)
 
-            # 2. Log Loss Trend
-            fig, ax = plt.subplots(figsize=(7.5, 5.5))
+            # 2. Log Loss Bar Chart
+            fig, ax = plt.subplots(figsize=(8.5, 5.5))
+            logloss_vals = []
             for model_name in ALL_MODELS:
-                df_m = df_sg[df_sg['model'] == model_name].sort_values('layer')
-                if df_m.empty:
-                    continue
-                ax.plot(
-                    df_m['layer'], df_m['logloss'],
-                    label=MODEL_DISPLAY_NAMES[model_name],
-                    color=MODEL_COLORS[model_name],
-                    marker=MODEL_MARKERS[model_name],
-                    markersize=7, linewidth=2.0, alpha=0.9
-                )
-            ax.set_xticks(ALL_LAYERS)
+                df_m = df_sg[df_sg['model'] == model_name]
+                logloss_vals.append(df_m['logloss'].values[0] if not df_m.empty else 0)
+                
+            bars = ax.bar(x_pos, logloss_vals, color=[MODEL_COLORS[m] for m in ALL_MODELS], alpha=0.85, edgecolor='black', width=0.6)
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([MODEL_DISPLAY_NAMES[m] for m in ALL_MODELS], rotation=15, fontsize=9)
             ax.set_ylim(logloss_ylim)
-            ax.set_xlabel('Hidden Layer (3~6)', fontsize=11, fontweight='bold')
             ax.set_ylabel('Log Loss (Lower is Better)', fontsize=11, fontweight='bold')
-            ax.set_title(f'Log Loss Trend (Group: y1 == {g}) | Split: {split.upper()}', fontsize=12, fontweight='bold')
-            ax.grid(True, linestyle='--', alpha=0.3)
-            ax.legend(loc='upper right', fontsize=9)
+            ax.set_title(f'Log Loss Comparison (Group: y1 == {g}) | Split: {split.upper()}', fontsize=12, fontweight='bold')
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            
+            for bar in bars:
+                h = bar.get_height()
+                if h > 0:
+                    ax.annotate(f'{h:.4f}', xy=(bar.get_x() + bar.get_width()/2, h), xytext=(0,3), textcoords='offset points', ha='center', va='bottom', fontsize=9)
+            
             plt.tight_layout()
-
             save_logloss = os.path.join(split_single_dir, f"logloss_trend_group{g}.png")
             os.makedirs(os.path.dirname(save_logloss), exist_ok=True)
             fig.savefig(save_logloss, dpi=180, bbox_inches='tight')
@@ -436,7 +491,7 @@ def generate_01_metrics_trends_split_y(calib_data, base_output_dir, pca_status):
     )
 
 
-# ─── 02_Reliability_Curves_split_y (4 個模型獨自畫前後，大圖共 4 張) ─────────────
+# ─── 02_Reliability_Curves_split_y (6 個模型獨自畫前後) ─────────────
 
 def plot_single_combined_reliability(y_true, score_pre, p_cal, y1, title, save_path):
     """
@@ -510,14 +565,14 @@ def plot_single_combined_reliability(y_true, score_pre, p_cal, y1, title, save_p
 
 def generate_02_reliability_curves_combined(calib_data, base_output_dir, pca_status):
     print("\n" + "="*80)
-    print(f"【圖表 3/3】生成 02_Reliability_Curves_combined (4個模型獨立大圖) | PCA: {pca_status}")
+    print(f"【圖表 3/3】生成 02_Reliability_Curves_combined (6個模型獨立大圖) | PCA: {pca_status}")
     print("="*80)
 
     single_dir = os.path.join(base_output_dir, "02_Reliability_Curves_combined", "single", pca_status)
     combined_dir = os.path.join(base_output_dir, "02_Reliability_Curves_combined", "combined", pca_status)
 
     for model_name in ALL_MODELS:
-        print(f"  ├─ 處理模型: {model_name:20s} (生成 12 張單圖與對比拼接圖)")
+        print(f"  ├─ 處理模型: {model_name:20s}")
         for split in ALL_SPLITS:
             split_single_dir = os.path.join(single_dir, split)
             for layer in ALL_LAYERS:
@@ -535,82 +590,52 @@ def generate_02_reliability_curves_combined(calib_data, base_output_dir, pca_sta
                 save_p = os.path.join(split_single_dir, model_name, f"{model_name}_layer{layer}_reliability.png")
                 plot_single_combined_reliability(y3, score_pre, p_cal, y1, title, save_p)
 
-        # 1. 為該模型拼接各測試集 (split) 自有的 1×4 大圖 (Layer 3, 4, 5, 6)
-        col_labels = [f"Layer {l}" for l in ALL_LAYERS]
-        for split in ALL_SPLITS:
-            split_single_dir = os.path.join(single_dir, split)
-            split_combined_dir = os.path.join(combined_dir, split)
-            
-            grid_1x4 = [[]]
-            for layer in ALL_LAYERS:
-                p = os.path.join(split_single_dir, model_name, f"{model_name}_layer{layer}_reliability.png")
-                grid_1x4[0].append(p)
-                
-            out_comb_1x4 = os.path.join(split_combined_dir, f"y3_{model_name}_combined_reliability_1x4.png")
-            combine_grid(
-                grid_1x4, out_comb_1x4,
-                title=f"Reliability Curves — Model: {MODEL_DISPLAY_NAMES[model_name]} | Split: {split.upper()} ({pca_status})",
-                tile_w=580, tile_h=520,
-                col_labels=col_labels
-            )
+    print("  └─ 開始生成 3×6 組合大圖...")
+    col_labels = [MODEL_DISPLAY_NAMES[m] for m in ALL_MODELS]
+    row_labels = [s.upper() for s in ALL_SPLITS]
 
-        # 2. 為該模型拼接 3 列 (test1, test2, eval) × 4 行 (Layer 3, 4, 5, 6) 的全域 3x4 大圖
-        row_labels = [s.upper() for s in ALL_SPLITS]
-        grid = []
-        for split in ALL_SPLITS:
-            split_single_dir = os.path.join(single_dir, split)
-            row = []
-            for layer in ALL_LAYERS:
-                p = os.path.join(split_single_dir, model_name, f"{model_name}_layer{layer}_reliability.png")
-                row.append(p)
-            grid.append(row)
+    layer = ALL_LAYERS[0]
+    
+    grid = []
+    for split in ALL_SPLITS:
+        split_single_dir = os.path.join(single_dir, split)
+        row = []
+        for model_name in ALL_MODELS:
+            p = os.path.join(split_single_dir, model_name, f"{model_name}_layer{layer}_reliability.png")
+            row.append(p)
+        grid.append(row)
 
-        out_comb = os.path.join(combined_dir, f"y3_{model_name}_combined_reliability_3x4.png")
-        combine_grid(
-            grid, out_comb,
-            title=f"Reliability Curves Before vs After Calibration — Model: {MODEL_DISPLAY_NAMES[model_name]} (y3 Target) | ({pca_status})",
-            tile_w=580, tile_h=520,
-            row_labels=row_labels, col_labels=col_labels
-        )
+    out_comb = os.path.join(combined_dir, f"reliability_combined_3x6_all_models.png")
+    combine_grid(
+        grid, out_comb,
+        title=f"Reliability Curves 3x6 Overview (y3 Target) | ({pca_status})",
+        tile_w=580, tile_h=520,
+        row_labels=row_labels, col_labels=col_labels
+    )
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="LLM Safety Probe Pipeline - Stage 2 Core Plotting Suite (V2)",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        '--chart',
-        choices=['all', 'joint_calibration', 'trends_split_y', 'reliability_combined'],
-        default='all',
-        help="選擇要繪製的圖表類型 (預設: all)"
-    )
+    parser = argparse.ArgumentParser()
     args = parser.parse_args()
 
-    input_dir = "results/v2_framework/framework_calibration"
-    if not os.path.exists(os.path.join(input_dir, "calibration_data.joblib")):
-        input_dir = "results/v2_framework/framework_calibration/without_pca"
+    input_dir = "outputs/v2_framework/framework_calibration"
     joblib_file = os.path.join(input_dir, "calibration_data.joblib")
     base_output_dir = "results/v2_framework/plots_framework_stage2"
+    pca_status = "full_1024d"
 
     if not os.path.exists(joblib_file):
         print(f"錯誤: 找不到校準數據 {joblib_file}。請先執行 calibrate_framework_models.py")
         sys.exit(1)
 
     print("=" * 80)
-    print(f"階段二核心可視化圖表 (V2) — 開始繪製圖表類型: {args.chart}")
+    print(f"階段二核心可視化圖表 (V2) — 開始繪製")
     print("=" * 80)
 
     calib_data = joblib.load(joblib_file)
 
-    if args.chart in ['all', 'joint_calibration']:
-        generate_07_joint_calibration(calib_data, base_output_dir, pca_status)
-
-    if args.chart in ['all', 'trends_split_y']:
-        generate_01_metrics_trends_split_y(calib_data, base_output_dir, pca_status)
-
-    if args.chart in ['all', 'reliability_combined']:
-        generate_02_reliability_curves_combined(calib_data, base_output_dir, pca_status)
+    generate_07_joint_calibration(calib_data, base_output_dir, pca_status)
+    generate_01_metrics_trends_split_y(calib_data, base_output_dir, pca_status)
+    generate_02_reliability_curves_combined(calib_data, base_output_dir, pca_status)
 
     print("\n" + "=" * 80)
     print(f"所有指定的階段二核心圖表已繪製完成！({pca_status}) 圖片儲存於: {base_output_dir}")

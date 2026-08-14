@@ -466,8 +466,10 @@ def combine_09_roc_curves(targets: list[str]) -> None:
         row: list[str | None] = []
         for layer in ALL_LAYERS:
             candidate_roc = [
-                f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png",
-                f"results/v1_baseline/unified_training/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
+                f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png",
+                f"results/v1_baseline/unified_training/lgb_y2/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png",
+                f"results/v1_baseline/unified_training/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png",
+                f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/{pca_status}/layer_{layer}/{target}_png/model_roc_curve_layer_{layer}_{target}.png"
             ]
             found_path = None
             for p in candidate_roc:

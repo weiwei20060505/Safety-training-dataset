@@ -12,7 +12,8 @@ import json
 import tempfile
 import numpy as np
 import lightgbm as lgb
-from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
+from sklearn.linear_model import LogisticRegression
 
 try:
     import torch
@@ -115,10 +116,10 @@ class RootSplitLGBMClassifier(BaseEstimator, ClassifierMixin):
         y1_zero = np.zeros(len(X))
         return self.predict_proba(X, y1_zero)
 
-        def predict_proba_head1(self, X):
-            """強迫設定 y1=1 (Unsafe 分支)，獲取 P(y2=1 | X, y1=1)"""
-            y1_one = np.ones(len(X))
-            return self.predict_proba(X, y1_one)
+    def predict_proba_head1(self, X):
+        """強迫設定 y1=1 (Unsafe 分支)，獲取 P(y2=1 | X, y1=1)"""
+        y1_one = np.ones(len(X))
+        return self.predict_proba(X, y1_one)
 
 
 class FeaturePlusY1LGBMClassifier(BaseEstimator, ClassifierMixin):
@@ -414,3 +415,121 @@ else:
         """PyTorch 未安裝時之 Dummy 佔位類別"""
         def __init__(self, *args, **kwargs):
             raise ImportError("PyTorch (torch) 未安裝，無法使用 SingleHeadMLPPyTorchClassifier。請執行 `pip install torch` 進行安裝。")
+
+class HardDualClassifierWrapper(BaseEstimator, ClassifierMixin):
+    """
+    硬性資料切分雙模型 (Hard Dual Models Split)
+    將資料按 y1=0 和 y1=1 拆分，分別訓練兩個獨立的基礎分類器 (base_estimator)。
+    """
+    def __init__(self, base_estimator):
+        self.base_estimator = base_estimator
+        self.model0_ = None
+        self.model1_ = None
+        self.classes_ = np.array([0, 1])
+        self._estimator_type = "classifier"
+
+    def fit(self, X, y1, y2):
+        X = np.asarray(X, dtype=np.float32)
+        y1 = np.asarray(y1, dtype=int)
+        y2 = np.asarray(y2, dtype=int)
+        
+        mask0 = (y1 == 0)
+        mask1 = (y1 == 1)
+        
+        self.model0_ = clone(self.base_estimator)
+        self.model1_ = clone(self.base_estimator)
+        
+        if np.any(mask0):
+            # For PyTorch wrappers we might need y1, y2 if their fit signature requires it,
+            # but standard sklearn estimators only take X, y.
+            # We'll adapt based on the base estimator.
+            if hasattr(self.model0_, 'epochs'): # heuristics for custom PyTorch wrappers
+                self.model0_.fit(X[mask0], y1[mask0], y2[mask0])
+            else:
+                self.model0_.fit(X[mask0], y2[mask0])
+                
+        if np.any(mask1):
+            if hasattr(self.model1_, 'epochs'):
+                self.model1_.fit(X[mask1], y1[mask1], y2[mask1])
+            else:
+                self.model1_.fit(X[mask1], y2[mask1])
+                
+        return self
+
+    def predict_proba(self, X, y1=None):
+        X = np.asarray(X, dtype=np.float32)
+        if y1 is None:
+            y1 = np.zeros(len(X))
+        y1 = np.asarray(y1, dtype=int)
+        
+        proba = np.zeros((len(X), 2))
+        
+        mask0 = (y1 == 0)
+        mask1 = (y1 == 1)
+        
+        if np.any(mask0):
+            if hasattr(self.model0_, 'predict_proba_head0'): # fallback for custom wrappers
+                proba[mask0] = self.model0_.predict_proba(X[mask0], y1[mask0])
+            else:
+                proba[mask0] = self.model0_.predict_proba(X[mask0])
+                
+        if np.any(mask1):
+            if hasattr(self.model1_, 'predict_proba_head0'):
+                proba[mask1] = self.model1_.predict_proba(X[mask1], y1[mask1])
+            else:
+                proba[mask1] = self.model1_.predict_proba(X[mask1])
+                
+        return proba
+
+    def predict_proba_head0(self, X):
+        y1_zero = np.zeros(len(X))
+        return self.predict_proba(X, y1_zero)
+
+    def predict_proba_head1(self, X):
+        y1_one = np.ones(len(X))
+        return self.predict_proba(X, y1_one)
+
+
+class LRInteractionClassifier(BaseEstimator, ClassifierMixin):
+    """
+    特徵交互擴增 (Interaction Terms) 單 LR 模型
+    特徵擴增為 [y1, (1-y1)*X, y1*X]
+    """
+    def __init__(self, C=1.0, max_iter=1000, random_state=42):
+        self.C = C
+        self.max_iter = max_iter
+        self.random_state = random_state
+        self.model_ = LogisticRegression(C=self.C, max_iter=self.max_iter, random_state=self.random_state, solver='liblinear')
+        self.classes_ = np.array([0, 1])
+        self._estimator_type = "classifier"
+
+    def _augment_features(self, X, y1):
+        X = np.asarray(X, dtype=np.float32)
+        y1 = np.asarray(y1, dtype=np.float32).reshape(-1, 1)
+        
+        term0 = y1
+        term1 = (1 - y1) * X
+        term2 = y1 * X
+        
+        X_aug = np.hstack([term0, term1, term2])
+        return X_aug
+
+    def fit(self, X, y1, y2):
+        X_aug = self._augment_features(X, y1)
+        y2 = np.asarray(y2, dtype=int)
+        self.model_.fit(X_aug, y2)
+        return self
+
+    def predict_proba(self, X, y1=None):
+        if y1 is None:
+            y1 = np.zeros(len(X))
+        X_aug = self._augment_features(X, y1)
+        return self.model_.predict_proba(X_aug)
+
+    def predict_proba_head0(self, X):
+        y1_zero = np.zeros(len(X))
+        return self.predict_proba(X, y1_zero)
+
+    def predict_proba_head1(self, X):
+        y1_one = np.ones(len(X))
+        return self.predict_proba(X, y1_one)

@@ -368,10 +368,12 @@ class UnifiedModelTrainer:
 
         # 構建 best 模型：複製一個 clf，手動設定最佳輪數
         best_clf = copy.deepcopy(clf)
+        best_clf.best_iteration_ = best_iteration
         best_clf._best_iteration = best_iteration
         
-        # last 模型：複製一個 clf，不使用 best_iteration_
+        # last 模型：複製一個 clf，不使用 early stopping 的 best_iteration_
         last_clf = copy.deepcopy(clf)
+        last_clf.best_iteration_ = len(clf.evals_result_['train']['binary_error'])
         last_clf._best_iteration = 0
 
         # 預測使用 best_clf

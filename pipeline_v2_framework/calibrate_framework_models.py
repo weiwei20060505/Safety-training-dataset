@@ -1,11 +1,11 @@
 """
 8月6日 LLM 隱藏狀態機率校正與元評估框架 — 階段二：獨立校準與評估腳本
 ======================================================================
-針對 Layer 3, 4, 5, 6 訓練好的 16 個模型，在 3 個獨立測試集（Test 1, Test 2, Eval）上
+針對 Layer 6 訓練好的 6 個模型，在 3 個獨立測試集（Test 1, Test 2, Eval）上
 執行 PAVA (Isotonic Regression) 保序回歸校準與子群 ($y_1$) 分流校準。
 
 算出的 Raw Score, Calibrated Probability, Brier Components 等數據完整儲存至:
-  results/v2_framework/framework_calibration/{with_pca,without_pca}/
+  results/v2_framework/framework_calibration/
 """
 
 import os
@@ -15,7 +15,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import pandas as pd
 import joblib
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.isotonic import IsotonicRegression
 import argparse
@@ -23,9 +22,10 @@ import argparse
 from utils_calibration import calculate_all_metrics, brier_score_decomposition
 from conditional_models import (
     RootSplitLGBMClassifier,
-    FeaturePlusY1LGBMClassifier,
     YHeadMLPPyTorchClassifier,
-    SingleHeadMLPPyTorchClassifier
+    SingleHeadMLPPyTorchClassifier,
+    HardDualClassifierWrapper,
+    LRInteractionClassifier
 )
 
 def extract_y1_y2(df):
@@ -38,31 +38,20 @@ def main():
     args = parser.parse_args()
 
     print("=" * 80)
-    print("8月6日 LLM 隱藏狀態機率校正框架 — 開始執行階段二：子群機率校準 (PAVA)")
+    print("V2 隱藏狀態機率校正框架 — 開始執行階段二：子群機率校準 (PAVA)")
     print("=" * 80)
 
-    train_path = "data/experiment_results_train_10000.pkl"
-    model_dir = "results/v2_framework/framework_training"
-    output_dir = "results/v2_framework/framework_calibration"
+    train_path = "data/v1_train_full.pkl"
+    model_dir = "outputs/v2_framework/framework_training"
+    output_dir = "outputs/v2_framework/framework_calibration"
     os.makedirs(output_dir, exist_ok=True)
+    pca_status = "full_1024d"
 
-    # 1. 讀取基準 10,000 訓練/驗證集以擬合 Scaler, PCA 與 Isotonic Calibration
-    print(f"\n[1] 載入基準 Train/Val 數據集: {train_path} ...")
+    # 1. 讀取基準 Train 數據集以擬合 Scaler
+    print(f"\n[1] 載入基準 Train 數據集 (用於 Scaler): {train_path} ...")
     df_train = pd.read_pickle(train_path)
     X_train_3d = np.array(df_train['hidden_state'].tolist())
     y1_train_all, y2_train_all = extract_y1_y2(df_train)
-
-    train_val_idx, test_idx = train_test_split(
-        np.arange(len(df_train)), test_size=0.2, random_state=42, stratify=y2_train_all
-    )
-    y2_train_val = y2_train_all[train_val_idx]
-
-    train_idx_sub, val_idx_sub = train_test_split(
-        np.arange(len(train_val_idx)), test_size=0.25, random_state=42, stratify=y2_train_val
-    )
-
-    train_idx = train_val_idx[train_idx_sub] # 6,000 筆
-    val_idx = train_val_idx[val_idx_sub]     # 2,000 筆
 
     # 2. 載入 3 個獨立測試集 (Test 1, Test 2, Eval)
     test_datasets = {}
@@ -105,8 +94,15 @@ def main():
         }
         print(f"  └─ 載入 Eval / Test 3 (`experiment_results_eval.pkl`): {len(df_ev)} 筆")
 
-    layers = [3, 4, 5, 6]
-    models = ["RootSplit_LGBM", "FeaturePlusY1_LGBM", "YHead_MLP", "SingleHead_MLP"]
+    layers = [6]
+    models = [
+        "LR_Hard_Dual",
+        "LR_Interaction",
+        "LGB_Hard_Dual",
+        "RootSplit_LGBM",
+        "MLP_Hard_Dual",
+        "YHead_MLP"
+    ]
 
     calibration_records = []
     calibration_data = {
@@ -116,19 +112,14 @@ def main():
     for layer in layers:
         layer_idx = layer - 1
         print("\n" + "=" * 75)
-        print(f"【Layer {layer} / 6】進行模型加載、分數預測與 PAVA 機率校準 | PCA Mode: {pca_status}")
+        print(f"【Layer {layer}】進行模型加載、分數預測與 PAVA 機率校準 | PCA Mode: {pca_status}")
         print("=" * 75)
 
-        X_tr = X_train_3d[train_idx, layer_idx, :]
-        y1_tr, y2_tr = y1_train_all[train_idx], y2_train_all[train_idx]
-
-        X_val = X_train_3d[val_idx, layer_idx, :]
-        y1_val, y2_val = y1_train_all[val_idx], y2_train_all[val_idx]
+        X_tr = X_train_3d[:, layer_idx, :]
 
         # 擬合 Scaler
         scaler = StandardScaler()
-        X_tr_pca = scaler.fit_transform(X_tr)
-        X_val_pca = scaler.transform(X_val)
+        scaler.fit(X_tr)
 
         calibration_data['layers'][layer] = {}
 
