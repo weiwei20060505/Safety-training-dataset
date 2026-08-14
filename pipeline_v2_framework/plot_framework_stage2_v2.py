@@ -585,22 +585,11 @@ def main():
         default='all',
         help="選擇要繪製的圖表類型 (預設: all)"
     )
-    parser.add_argument(
-        '--use_pca',
-        action='store_true',
-        default=True,
-        help="Use PCA for dimensionality reduction (預設: True)"
-    )
-    parser.add_argument(
-        '--no_pca',
-        action='store_false',
-        dest='use_pca',
-        help="Do not use PCA for dimensionality reduction"
-    )
     args = parser.parse_args()
 
-    pca_status = "with_pca" if args.use_pca else "without_pca"
-    input_dir = f"results/v2_framework/framework_calibration/{pca_status}"
+    input_dir = "results/v2_framework/framework_calibration"
+    if not os.path.exists(os.path.join(input_dir, "calibration_data.joblib")):
+        input_dir = "results/v2_framework/framework_calibration/without_pca"
     joblib_file = os.path.join(input_dir, "calibration_data.joblib")
     base_output_dir = "results/v2_framework/plots_framework_stage2"
 
@@ -609,7 +598,7 @@ def main():
         sys.exit(1)
 
     print("=" * 80)
-    print(f"階段二核心可視化圖表 (V2) — 開始繪製圖表類型: {args.chart} | PCA Mode: {pca_status}")
+    print(f"階段二核心可視化圖表 (V2) — 開始繪製圖表類型: {args.chart}")
     print("=" * 80)
 
     calib_data = joblib.load(joblib_file)

@@ -16,7 +16,6 @@ import joblib
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 from imblearn.under_sampling import RandomUnderSampler
 from sklearn.metrics import roc_curve, auc
 
@@ -86,13 +85,6 @@ def main():
         idx_res, _ = rus.fit_resample(np.arange(len(X_tr_scaled)).reshape(-1, 1), y2_tr)
         idx_res = idx_res.flatten()
 
-        X_tr_bal = X_tr_scaled[idx_res]
-
-        pca = PCA(n_components=128, random_state=42)
-        pca.fit(X_tr_bal)
-        X_val_pca = pca.transform(X_val_scaled)
-        X_ev_pca = pca.transform(X_ev_scaled)
-
         # 載入模型
         lgb_path = os.path.join(model_dir, f"layer_{layer}", "rootsplit_lgbm.joblib")
         mlp_path = os.path.join(model_dir, f"layer_{layer}", "yhead_mlp.joblib")
@@ -101,8 +93,8 @@ def main():
         mlp_model = joblib.load(mlp_path)
 
         datasets = [
-            ("Val_Set", X_val_pca, y1_val, y2_val),
-            ("Eval_Set", X_ev_pca, y1_eval, y2_eval)
+            ("Val_Set", X_val_scaled, y1_val, y2_val),
+            ("Eval_Set", X_ev_scaled, y1_eval, y2_eval)
         ]
 
         for split_name, X_split, y1_split, y2_split in datasets:

@@ -13,8 +13,8 @@
    ```
 2. **確認原始資料檔位置**：
    確保 `data/experiment_results_train.pkl` 與 `data/experiment_results_eval.pkl` 已放置於專案根目錄的 `data/` 資料夾中。
-3. **確認 Python 環境與依據套件**：
-   建議使用 `.venv` 虛擬環境，需包含 `pandas`, `numpy`, `scikit-learn`, `lightgbm`, `imbalanced-learn`, `joblib`, `pyarrow`。
+3. **確認 Python 環境與依賴套件**：
+   建議使用 `.venv` 虛擬環境，需包含 `pandas`, `numpy`, `scikit-learn`, `lightgbm`, `imbalanced-learn`, `joblib`, `pyarrow`, `matplotlib`。
 
 ---
 
@@ -36,48 +36,51 @@
 
 ---
 
-### 🔹 步驟 2：第一階段五大模型全量訓練 (Stage 1 Probe Training)
-執行 5 種分類演算法 (`SGD`, `MLP`, `LGB`, `LR`, `RF`) × 6 個特徵層的全量訓練：
+### 🔹 步驟 2：全自動管線批次執行 (Unified Batch Execution - 推薦)
 
-**方法 A：直接執行批次腳本 (推薦)**
+可以直接執行統整後的 V1 全流程一鍵批次檔：
+
 ```cmd
-.\run_v1_lgb_expansion.bat
+.\run_full_v1.bat
 ```
 
-**方法 B：手動指令執行**
+該腳本會依序完成：模型訓練 ➔ 雙軌保序機率校正 ➔ 自訂圖表繪製 ➔ 組合大圖拼接。
+
+---
+
+### 🔹 步驟 3：分步手動執行指令 (Step-by-Step Manual Execution)
+
+如需拆解步驟個別執行，指令如下（全專案已完全移除 PCA，直接對 1,024 維特徵進行處理）：
+
+#### 1. 第一階段探針全量訓練 (Stage 1 Probe Training)
 ```bash
-.venv\Scripts\python.exe pipeline_v1_baseline\unified_train.py --no_pca --train_data data\v1_train_full.pkl --val_data data\v1_val.pkl --output_suffix all_models_y2_78k
+.venv\Scripts\python.exe pipeline_v1_baseline\unified_train.py --train_data data\v1_train_full.pkl --val_data data\v1_val.pkl --output_suffix all_models_y2_78k
 ```
-
 > **關鍵模型設定**：
-> - LightGBM: `n_estimators=1000`, `learning_rate=0.03`, `early_stopping=50`
-> - 特徵空間: 1,024 維全量特徵 (Without PCA)
-> - 類別分佈: 自然真實分佈 (無 RandomUnderSampler)
-> - 預計耗時: 約 25 ~ 30 分鐘
+> - 模型：MLP, LightGBM, LogisticRegression × 6 個 Hidden Layer
+> - 特徵空間：1,024 維原始特徵 (Raw Hidden State Features, 無 PCA 降維)
+> - 類別分佈：自然真實分佈 (無 RandomUnderSampler)
 
----
-
-### 🔹 步驟 3：第二階段雙軌機率校正 (Stage 2 Probability Calibration)
-使用 `v1_test1.pkl` (2,000 筆) 訓練 Isotonic Regression / Platt Scaling 1D 機率校正器：
-
+#### 2. 第二階段統一機率校正 (Stage 2 Probability Calibration)
 ```bash
-.venv\Scripts\python.exe pipeline_v1_baseline\step2_calibrate.py --no_pca
+.venv\Scripts\python.exe pipeline_v1_baseline\step2_calibrate.py
 ```
+> **校正模型設定**：
+> - 採用統一 Isotonic Regression 擬合標籤 $y_3 = \mathbb{I}(y_1 == y_2)$，保證校正曲線單調遞增。
 
----
-
-### 🔹 步驟 4：第三與第四階段元評估與圖表繪製 (Meta-Evaluation & Plotting)
-使用 `v1_test2.pkl` (3,000 筆) 與獨立評估集 `experiment_results_eval.pkl` 生成最終校正前後之 ECE、ROC-AUC、Brier Score 與安全防護邊界圖表：
-
+#### 3. 第三階段圖表繪製 (Stage 3 Plotting & Visualization)
 ```bash
-.venv\Scripts\python.exe pipeline_v1_baseline\step3_plot.py --no_pca
-.venv\Scripts\python.exe pipeline_v1_baseline\step4_combine_plots.py --no_pca
+# 生成核心自訂診斷圖 (Trends, Reliability, Joint Calibration)
+.venv\Scripts\python.exe pipeline_v1_baseline\plot_v1_custom.py
+
+# 生成標準大圖拼接
+.venv\Scripts\python.exe pipeline_v1_baseline\step4_combine_plots.py
 ```
 
 ---
 
 ## 📁 成果與輸出目錄說明
 
-- **模型檔與訓練對比圖**：`results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/without_pca/`
-- **校正模型與預測快取**：`results/v1_baseline/safety_guardrails_evaluation/without_pca/`
-- **報告簡報檔**：[`LLM 隱藏狀態機率校正與元評估框架 8月11日.md`](file:///c:/Users/weiwe/Safety-training-dataset/Safety-training-dataset/LLM%20%E9%9A%B1%E8%97%8F%E7%8B%80%E6%85%8B%E6%A9%9F%E7%8E%87%E6%A0%A1%E6%AD%A3%E8%88%87%E5%85%83%E8%A9%95%E4%BC%B0%E6%A1%86%E6%9E%B6%208%E6%9C%8811%E6%97%A5.md)
+- **模型權重與訓練日誌**：`models/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/`
+- **校正快取與指標檔**：`cache/v1_baseline/calibration/`
+- **視覺化產物目錄**：`results/v1_baseline/plots_custom/`

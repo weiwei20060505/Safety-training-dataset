@@ -29,8 +29,6 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils.class_weight import compute_class_weight
 from imblearn.pipeline import Pipeline as ImbPipeline
-from imblearn.under_sampling import RandomUnderSampler
-from sklearn.decomposition import PCA
 import lightgbm as lgb
 import warnings
 
@@ -134,9 +132,8 @@ class DataSplitter:
 
 # ================= 第 5 區塊：模型訓練管理器 =================
 class UnifiedModelTrainer:
-    def __init__(self, output_dir, use_pca=True):
+    def __init__(self, output_dir):
         self.output_dir = output_dir
-        self.use_pca = use_pca
         os.makedirs(output_dir, exist_ok=True)
 
     def train_sgd(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
@@ -149,17 +146,9 @@ class UnifiedModelTrainer:
         X_test_scaled = scaler.transform(X_test)
         
         X_train_res, y_train_res = X_train_scaled, np.array(y_train)
-        
-        if self.use_pca:
-            pca = PCA(n_components=128, random_state=42)
-            X_train_pca = pca.fit_transform(X_train_res)
-            X_val_pca = pca.transform(X_val_scaled)
-            X_test_pca = pca.transform(X_test_scaled)
-        else:
-            pca = None
-            X_train_pca = X_train_res
-            X_val_pca = X_val_scaled
-            X_test_pca = X_test_scaled
+        X_train_pca = X_train_res
+        X_val_pca = X_val_scaled
+        X_test_pca = X_test_scaled
         
         classes = np.unique(y_train_res)
         class_weights = compute_class_weight('balanced', classes=classes, y=y_train_res)
@@ -231,16 +220,10 @@ class UnifiedModelTrainer:
         y_pred = best_clf.predict(X_test_pca)
         y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
         
-        steps_best = [('scaler', scaler)]
-        if pca is not None:
-            steps_best.append(('pca', pca))
-        steps_best.append(('clf', best_clf))
+        steps_best = [('scaler', scaler), ('clf', best_clf)]
         final_pipeline_best = ImbPipeline(steps_best)
 
-        steps_last = [('scaler', scaler)]
-        if pca is not None:
-            steps_last.append(('pca', pca))
-        steps_last.append(('clf', last_clf))
+        steps_last = [('scaler', scaler), ('clf', last_clf)]
         final_pipeline_last = ImbPipeline(steps_last)
         return final_pipeline_best, final_pipeline_last, y_pred, y_pred_proba, history, None, None
 
@@ -254,17 +237,9 @@ class UnifiedModelTrainer:
         X_test_scaled = scaler.transform(X_test)
         
         X_train_res, y_train_res = X_train_scaled, np.array(y_train)
-        
-        if self.use_pca:
-            pca = PCA(n_components=128, random_state=42)
-            X_train_pca = pca.fit_transform(X_train_res)
-            X_val_pca = pca.transform(X_val_scaled)
-            X_test_pca = pca.transform(X_test_scaled)
-        else:
-            pca = None
-            X_train_pca = X_train_res
-            X_val_pca = X_val_scaled
-            X_test_pca = X_test_scaled
+        X_train_pca = X_train_res
+        X_val_pca = X_val_scaled
+        X_test_pca = X_test_scaled
         
         clf = MLPClassifier(hidden_layer_sizes=(128,), random_state=42, alpha=0.01)
         classes = np.unique(y_train_res)
@@ -324,16 +299,10 @@ class UnifiedModelTrainer:
         y_pred = best_clf.predict(X_test_pca)
         y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
         
-        steps_best = [('scaler', scaler)]
-        if pca is not None:
-            steps_best.append(('pca', pca))
-        steps_best.append(('clf', best_clf))
+        steps_best = [('scaler', scaler), ('clf', best_clf)]
         final_pipeline_best = ImbPipeline(steps_best)
 
-        steps_last = [('scaler', scaler)]
-        if pca is not None:
-            steps_last.append(('pca', pca))
-        steps_last.append(('clf', last_clf))
+        steps_last = [('scaler', scaler), ('clf', last_clf)]
         final_pipeline_last = ImbPipeline(steps_last)
         return final_pipeline_best, final_pipeline_last, y_pred, y_pred_proba, history, None, None
 
@@ -347,17 +316,9 @@ class UnifiedModelTrainer:
         X_test_scaled = scaler.transform(X_test)
         
         X_train_res, y_train_res = X_train_scaled, y_train
-        
-        if self.use_pca:
-            pca = PCA(n_components=128, random_state=42)
-            X_train_pca = pca.fit_transform(X_train_res)
-            X_val_pca = pca.transform(X_val_scaled)
-            X_test_pca = pca.transform(X_test_scaled)
-        else:
-            pca = None
-            X_train_pca = X_train_res
-            X_val_pca = X_val_scaled
-            X_test_pca = X_test_scaled
+        X_train_pca = X_train_res
+        X_val_pca = X_val_scaled
+        X_test_pca = X_test_scaled
         
         clf = lgb.LGBMClassifier(
             n_estimators=1000, 
@@ -417,16 +378,10 @@ class UnifiedModelTrainer:
         y_pred = best_clf.predict(X_test_pca)
         y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
         
-        steps_best = [('scaler', scaler)]
-        if pca is not None:
-            steps_best.append(('pca', pca))
-        steps_best.append(('clf', best_clf))
+        steps_best = [('scaler', scaler), ('clf', best_clf)]
         final_pipeline_best = ImbPipeline(steps_best)
 
-        steps_last = [('scaler', scaler)]
-        if pca is not None:
-            steps_last.append(('pca', pca))
-        steps_last.append(('clf', last_clf))
+        steps_last = [('scaler', scaler), ('clf', last_clf)]
         final_pipeline_last = ImbPipeline(steps_last)
         return final_pipeline_best, final_pipeline_last, y_pred, y_pred_proba, history, None, None
 
@@ -435,11 +390,9 @@ class UnifiedModelTrainer:
         print(f"\n  [LR] 訓練 {y_name} 模型 (評估 5 份資料量)...")
         
         steps = [
-            ('scaler', StandardScaler())
+            ('scaler', StandardScaler()),
+            ('clf', LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42))
         ]
-        if self.use_pca:
-            steps.append(('pca', PCA(n_components=128, random_state=42)))
-        steps.append(('clf', LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42)))
         pipeline = ImbPipeline(steps)
 
         train_sizes, train_scores, val_scores = learning_curve(
@@ -472,11 +425,10 @@ class UnifiedModelTrainer:
         print(f"\n  [RF] 訓練 {y_name} 模型 (評估 5 份資料量)...")
         
         steps = [
-            ('scaler', StandardScaler())
+            ('scaler', StandardScaler()),
+            ('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=4))
         ]
-        if self.use_pca:
-            steps.append(('pca', PCA(n_components=128, random_state=42)))
-        steps.append(('clf', RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42, n_jobs=4)))
+        pipeline = ImbPipeline(steps)
         pipeline = ImbPipeline(steps)
         
         train_sizes, train_scores, val_scores = learning_curve(
@@ -778,26 +730,25 @@ class PlotGenerator:
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA')
-    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA')
     parser.add_argument('--train_data', type=str, required=True, help='Path to training data (e.g. data/v1_train_10000.pkl)')
     parser.add_argument('--val_data', type=str, required=True, help='Path to validation data (e.g. data/v1_val.pkl)')
     parser.add_argument('--output_suffix', type=str, default="", help='Suffix for output directory')
     args = parser.parse_args()
     
-    pca_status = "with_pca" if args.use_pca else "without_pca"
     suffix = f"_{args.output_suffix}" if args.output_suffix else ""
 
     print("\n" + "="*80)
-    print(f"雙軌機器學習模型訓練框架 (LGB + Y2 專用) - 開始執行 | PCA Mode: {pca_status}")
+    print("雙軌機器學習模型訓練框架 (LGB + Y2 專用) - 開始執行")
     print("="*80)
 
     if not os.path.exists(args.train_data) or not os.path.exists(args.val_data):
         print("錯誤: 找不到數據檔案。")
         sys.exit(1)
 
-    OUTPUT_DIR = f"results/v1_baseline/unified_training/lgb_y2{suffix}/{pca_status}"
+    OUTPUT_DIR = f"results/v1_baseline/unified_training/lgb_y2{suffix}"
+    MODELS_DIR = f"models/v1_baseline/unified_training/lgb_y2{suffix}"
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(MODELS_DIR, exist_ok=True)
 
     sys.stdout = DualLogger(os.path.join(OUTPUT_DIR, "training_log.txt"))
 
@@ -832,14 +783,14 @@ def main():
         y_test_y2 = y2_val
 
         layer_output_dir = os.path.join(OUTPUT_DIR, f"layer_{layer_idx+1}")
-        trainer = UnifiedModelTrainer(output_dir=layer_output_dir, use_pca=args.use_pca)
+        layer_models_dir = os.path.join(MODELS_DIR, f"layer_{layer_idx+1}")
+        os.makedirs(layer_models_dir, exist_ok=True)
+        trainer = UnifiedModelTrainer(output_dir=layer_output_dir)
         
         models_to_train = [
-            ('SGD', trainer.train_sgd),
             ('MLP', trainer.train_mlp),
             ('LGB', trainer.train_lgb),
-            ('LR', trainer.train_lr),
-            ('RF', trainer.train_rf)
+            ('LR', trainer.train_lr)
         ]
 
         all_results = {}
@@ -847,8 +798,8 @@ def main():
         for model_name, train_func in models_to_train:
             results = ModelResults(model_name)
             
-            best_model_path = os.path.join(layer_output_dir, f"{model_name.lower()}_y2_best.pkl")
-            last_model_path = os.path.join(layer_output_dir, f"{model_name.lower()}_y2_last.pkl")
+            best_model_path = os.path.join(layer_models_dir, f"{model_name.lower()}_y2_best.pkl")
+            last_model_path = os.path.join(layer_models_dir, f"{model_name.lower()}_y2_last.pkl")
 
             if os.path.exists(best_model_path) and os.path.exists(last_model_path):
                 print(f"  ├─ [Layer {layer_idx+1}] {model_name} 已經訓練完成 ({best_model_path})，直接載入跳過...")

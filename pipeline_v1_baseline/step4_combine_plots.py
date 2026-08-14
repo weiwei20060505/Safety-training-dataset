@@ -537,14 +537,11 @@ def main() -> None:
         default='all',
         help="分類器模型 (預設: all)",
     )
-    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA mode')
-    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Without PCA mode')
     args = parser.parse_args()
     
-    global pca_status, PLOTS_DIR, COMBINED_DIR
-    pca_status = "with_pca" if args.use_pca else "without_pca"
-    PLOTS_DIR = f"results/v1_baseline/plots/{pca_status}"
-    COMBINED_DIR = f"results/v1_baseline/plots/combined/{pca_status}"
+    global PLOTS_DIR, COMBINED_DIR
+    PLOTS_DIR = "results/v1_baseline/plots"
+    COMBINED_DIR = "results/v1_baseline/plots/combined"
 
     # 解析過濾條件
     targets = ALL_TARGETS if args.target == 'all' else [args.target]

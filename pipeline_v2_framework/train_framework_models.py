@@ -20,7 +20,6 @@ import pandas as pd
 import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 import argparse
 from sklearn.metrics import (
     accuracy_score,
@@ -46,18 +45,14 @@ def extract_y1_y2(df):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_pca', action='store_true', default=True, help='Use PCA for dimensionality reduction')
-    parser.add_argument('--no_pca', action='store_false', dest='use_pca', help='Do not use PCA for dimensionality reduction')
     args = parser.parse_args()
 
-    pca_status = "with_pca" if args.use_pca else "without_pca"
-
     print("=" * 80)
-    print(f"8月6日 LLM 隱藏狀態機率校正框架 — 開始訓練 16 個模型 (Layer 3~6 × 4模型) | PCA Mode: {pca_status}")
+    print("8月6日 LLM 隱藏狀態機率校正框架 — 開始訓練 16 個模型 (Layer 3~6 × 4模型)")
     print("=" * 80)
 
     train_path = "data/experiment_results_train_10000.pkl"
-    output_dir = f"results/v2_framework/framework_training/{pca_status}"
+    output_dir = "results/v2_framework/framework_training"
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"\n[1] 載入主數據集: {train_path} ...")
@@ -106,18 +101,10 @@ def main():
         X_val = X_3d[val_idx, layer_idx, :]
         y1_val, y2_val = y1_all[val_idx], y2_all[val_idx]
 
-        # 標準化與 PCA
+        # 標準化
         scaler = StandardScaler()
-        X_tr_scaled = scaler.fit_transform(X_tr)
-        X_val_scaled = scaler.transform(X_val)
-
-        if args.use_pca:
-            pca = PCA(n_components=128, random_state=42)
-            X_tr_pca = pca.fit_transform(X_tr_scaled)
-            X_val_pca = pca.transform(X_val_scaled)
-        else:
-            X_tr_pca = X_tr_scaled
-            X_val_pca = X_val_scaled
+        X_tr_pca = scaler.fit_transform(X_tr)
+        X_val_pca = scaler.transform(X_val)
 
         input_dim = X_tr_pca.shape[1]
 

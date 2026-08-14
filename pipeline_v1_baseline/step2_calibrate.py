@@ -14,14 +14,11 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--use_pca', action='store_true', default=True)
-    parser.add_argument('--no_pca', action='store_false', dest='use_pca')
     args = parser.parse_args()
-    pca_status = "with_pca" if args.use_pca else "without_pca"
     
-    base_dir = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}"
-    cache_dir = os.path.join(base_dir, "cache")
-    models_calib_dir = f"results/v1_baseline/safety_guardrails_evaluation/{pca_status}/models/calibrated_isotonic"
+    base_dir = "cache/v1_baseline/calibration"
+    cache_dir = base_dir
+    models_calib_dir = "cache/v1_baseline/calibration/models/calibrated_isotonic"
     
     os.makedirs(cache_dir, exist_ok=True)
     os.makedirs(models_calib_dir, exist_ok=True)
@@ -48,8 +45,8 @@ def main():
         print(f"錯誤: 無法讀取資料集: {e}")
         return
         
-    models_list = ['SGD', 'MLP', 'LGB', 'LR', 'RF']
-    targets_list = ['y1', 'y2', 'y3']
+    models_list = ['MLP', 'LGB', 'LR']
+    targets_list = ['y2']  # Optimize: only run y2 as per request
     
     metrics_records = []
     predictions_cache = {t: {} for t in targets_list}
@@ -85,9 +82,10 @@ def main():
             
             for model_name in models_list:
                 candidate_paths = [
-                    f"results/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
-                    f"results/v1_baseline/unified_training/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
-                    f"results/v1_baseline/unified_training/lgb_y2_78k_ultimate/{pca_status}/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
+                    f"models/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
+                    f"models/v1_baseline/unified_training/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
+                    f"models/v1_baseline/unified_training/lgb_y2_78k_ultimate/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
+                    f"models/v1_baseline/unified_training/lgb_y2/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl"
                 ]
                 model_path = None
                 for p in candidate_paths:
@@ -114,43 +112,18 @@ def main():
                     pre_cal_test2 = p_test2
                     pre_cal_eval  = p_eval
                 
-                # 依據 y1 標籤分流進行 Isotonic Regression 擬合
-                mask_0_test1 = (y1_test1 == 0)
-                mask_1_test1 = (y1_test1 == 1)
-                
-                iso_0 = IsotonicRegression(out_of_bounds='clip')
-                iso_1 = IsotonicRegression(out_of_bounds='clip')
-                
-                # Fit separate calibrators without undersampling
-                if np.sum(mask_0_test1) > 0:
-                    iso_0.fit(pre_cal_test1[mask_0_test1], y3_test1[mask_0_test1])
-                else:
-                    iso_0.fit([0.0, 1.0], [0.0, 1.0])
-                    
-                if np.sum(mask_1_test1) > 0:
-                    iso_1.fit(pre_cal_test1[mask_1_test1], y3_test1[mask_1_test1])
-                else:
-                    iso_1.fit([0.0, 1.0], [0.0, 1.0])
+                # 統一的 Isotonic Regression 校正 (不再區分 y1)
+                iso_model = IsotonicRegression(out_of_bounds='clip')
+                iso_model.fit(pre_cal_test1, y3_test1)
                 
                 # Save calibration pair
                 calib_save_path = f"{layer_calib_dir}/{model_name.lower()}_{target_name}_iso.pkl"
-                joblib.dump({'iso_0': iso_0, 'iso_1': iso_1}, calib_save_path)
-                
-                # Split prediction helper
-                def predict_split(score_pre, y1_labels):
-                    prob_post = np.zeros_like(score_pre, dtype=float)
-                    m0 = (y1_labels == 0)
-                    m1 = (y1_labels == 1)
-                    if np.sum(m0) > 0:
-                        prob_post[m0] = iso_0.predict(score_pre[m0])
-                    if np.sum(m1) > 0:
-                        prob_post[m1] = iso_1.predict(score_pre[m1])
-                    return prob_post
+                joblib.dump({'iso_model': iso_model}, calib_save_path)
                 
                 # Generate calibrated probabilities
-                p_cal_test1 = predict_split(pre_cal_test1, y1_test1)
-                p_cal_test2 = predict_split(pre_cal_test2, y1_test2)
-                p_cal_eval = predict_split(pre_cal_eval, y1_eval)
+                p_cal_test1 = iso_model.predict(pre_cal_test1)
+                p_cal_test2 = iso_model.predict(pre_cal_test2)
+                p_cal_eval = iso_model.predict(pre_cal_eval)
                 
                 # Prepare cache structure
                 splits_info = {
