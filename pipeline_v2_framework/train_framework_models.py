@@ -35,11 +35,11 @@ from sklearn.linear_model import LogisticRegression
 import lightgbm as lgb
 
 from conditional_models import (
+    FeaturePlusY1LGBMClassifier,
     RootSplitLGBMClassifier,
     YHeadMLPPyTorchClassifier,
     SingleHeadMLPPyTorchClassifier,
-    HardDualClassifierWrapper,
-    LRInteractionClassifier
+    HardDualClassifierWrapper
 )
 
 def extract_y1_y2(df):
@@ -103,14 +103,14 @@ def main():
 
         input_dim = X_tr_scaled.shape[1]
 
-        # 6 種模型實體定義
+        # 6 種 V2 模型實體定義 (對齊最新架構)
         models_dict = {
-            "LR_Hard_Dual": HardDualClassifierWrapper(LogisticRegression(C=1.0, max_iter=1000, random_state=42, solver='liblinear')),
-            "LR_Interaction": LRInteractionClassifier(C=1.0, max_iter=1000, random_state=42),
-            "LGB_Hard_Dual": HardDualClassifierWrapper(lgb.LGBMClassifier(max_depth=-1, num_leaves=31, n_estimators=100, learning_rate=0.05, random_state=42, n_jobs=1, verbose=-1)),
-            "RootSplit_LGBM": RootSplitLGBMClassifier(max_depth=-1, num_leaves=31, n_estimators=100, learning_rate=0.05, reg_alpha=0.0, reg_lambda=0.0, random_state=42),
-            "MLP_Hard_Dual": HardDualClassifierWrapper(SingleHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=15, lr=1e-3, batch_size=64, random_state=42)),
-            "YHead_MLP": YHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=15, lr=1e-3, batch_size=64, random_state=42)
+            "LR": LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42),
+            "LR_Hard_Dual": HardDualClassifierWrapper(LogisticRegression(C=0.01, penalty='l2', max_iter=1000, random_state=42)),
+            "LGB_Hard_Dual": HardDualClassifierWrapper(lgb.LGBMClassifier(max_depth=6, num_leaves=31, n_estimators=300, learning_rate=0.03, reg_alpha=0.5, reg_lambda=0.5, random_state=42, n_jobs=1, verbose=-1)),
+            "LGB_FeaturePlusY1": FeaturePlusY1LGBMClassifier(max_depth=6, num_leaves=31, n_estimators=300, learning_rate=0.03, reg_alpha=0.5, reg_lambda=0.5, random_state=42),
+            "MLP_Hard_Dual": HardDualClassifierWrapper(SingleHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=50, lr=1e-3, batch_size=64, random_state=42)),
+            "YHead_MLP": YHeadMLPPyTorchClassifier(input_dim=input_dim, epochs=50, lr=1e-3, batch_size=64, random_state=42)
         }
 
         val_predictions['layers'][layer] = {}
