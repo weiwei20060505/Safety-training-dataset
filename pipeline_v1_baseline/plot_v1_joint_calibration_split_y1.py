@@ -14,8 +14,8 @@ plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
 # Path configuration
-BASE_DIR = r"C:/Users/weiwe/OneDrive/Desktop/Safety-training dataset"
-CACHE_PKL = os.path.join(BASE_DIR, "results/v1_baseline/safety_guardrails_evaluation/without_pca/cache/calibrated_predictions.pkl")
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+CACHE_PKL = os.path.join(BASE_DIR, "cache/v1_baseline/calibration/without_pca/calibrated_predictions.pkl")
 OUTPUT_DIR = os.path.join(BASE_DIR, "results/v1_baseline/plots_v1_joint_calibration_split_y1")
 
 MODEL_DISPLAY_NAMES = {
@@ -117,8 +117,8 @@ def plot_single_joint_calibration(pre_scores, post_scores, y_true, title, save_p
     mask_neg = (y_true == 0)
 
     bins = np.linspace(0.0, 1.0, 21)
-    ax1.hist(pre_scores[mask_pos], bins=bins, color='#74c476', alpha=0.75, label='Positive (y2=1)', zorder=2)
-    ax1.hist(pre_scores[mask_neg], bins=bins, color='#fb6a4a', alpha=0.75, label='Negative (y2=0)', zorder=1)
+    ax1.hist(pre_scores[mask_pos], bins=bins, color='#74c476', alpha=0.75, label='Correct (y3=1)', zorder=2)
+    ax1.hist(pre_scores[mask_neg], bins=bins, color='#fb6a4a', alpha=0.75, label='Incorrect (y3=0)', zorder=1)
     ax1.tick_params(axis='y')
 
     ax2 = ax1.twinx()
@@ -181,7 +181,7 @@ def main():
     print(f"Loading predictions cache from: {CACHE_PKL}")
     data = joblib.load(CACHE_PKL)
 
-    # We evaluate task y2 (safety label)
+    # We evaluate task y3 (consistency label)
     y2_data = data['y2']
 
     single_dir = os.path.join(OUTPUT_DIR, "single")
@@ -200,21 +200,21 @@ def main():
                 score_pre = info['score_pre']
                 p_cal = info['y_prob']  # Calibrated probability
                 y1 = info['y1']
-                y2 = info['y_true']
+                y3 = info['y3']
 
                 # 1. Group y1 == 0
                 mask0 = (y1 == 0)
                 if np.sum(mask0) > 0:
-                    title0 = f"V1 Baseline Joint Calibration (Task: Y2, Layer: {layer}, Model: {model_name}, Split: {split.upper()})\nSubgroup: y1 == 0 (Benign / Non-harmful Prompt)"
+                    title0 = f"V1 Baseline Joint Calibration (Task: Y3, Layer: {layer}, Model: {model_name}, Split: {split.upper()})\nSubgroup: y1 == 0 (Benign / Non-harmful Prompt)"
                     save0 = os.path.join(single_dir, f"layer{layer}", split, f"joint_cal_L{layer}_{model_name}_{split}_y1_0.png")
-                    plot_single_joint_calibration(score_pre[mask0], p_cal[mask0], y2[mask0], title0, save0)
+                    plot_single_joint_calibration(score_pre[mask0], p_cal[mask0], y3[mask0], title0, save0)
 
                 # 2. Group y1 == 1
                 mask1 = (y1 == 1)
                 if np.sum(mask1) > 0:
-                    title1 = f"V1 Baseline Joint Calibration (Task: Y2, Layer: {layer}, Model: {model_name}, Split: {split.upper()})\nSubgroup: y1 == 1 (Harmful Prompt)"
+                    title1 = f"V1 Baseline Joint Calibration (Task: Y3, Layer: {layer}, Model: {model_name}, Split: {split.upper()})\nSubgroup: y1 == 1 (Harmful Prompt)"
                     save1 = os.path.join(single_dir, f"layer{layer}", split, f"joint_cal_L{layer}_{model_name}_{split}_y1_1.png")
-                    plot_single_joint_calibration(score_pre[mask1], p_cal[mask1], y2[mask1], title1, save1)
+                    plot_single_joint_calibration(score_pre[mask1], p_cal[mask1], y3[mask1], title1, save1)
 
                 count += 2
 
