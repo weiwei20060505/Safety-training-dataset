@@ -15,7 +15,7 @@ plt.rcParams['axes.unicode_minus'] = False
 
 # Path configuration
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-CACHE_PKL = os.path.join(BASE_DIR, "cache/v1_baseline/calibration/without_pca/calibrated_predictions.pkl")
+CACHE_PKL = os.path.join(BASE_DIR, "cache/v1_baseline/calibration/calibrated_predictions.pkl")
 OUTPUT_DIR = os.path.join(BASE_DIR, "results/v1_baseline/plots_v1_joint_calibration_split_y1")
 
 MODEL_DISPLAY_NAMES = {

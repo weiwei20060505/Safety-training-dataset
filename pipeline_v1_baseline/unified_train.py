@@ -366,17 +366,152 @@ class UnifiedModelTrainer:
         
         history['best_epoch'] = best_iteration
 
-        # 構建 best 模型：複製一個 clf，手動設定最佳輪數
         best_clf = copy.deepcopy(clf)
-        best_clf.best_iteration_ = best_iteration
-        best_clf._best_iteration = best_iteration
-        
-        # last 模型：複製一個 clf，不使用 early stopping 的 best_iteration_
         last_clf = copy.deepcopy(clf)
-        last_clf.best_iteration_ = len(clf.evals_result_['train']['binary_error'])
-        last_clf._best_iteration = 0
 
         # 預測使用 best_clf
+        y_pred = best_clf.predict(X_test_pca)
+        y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
+        
+        steps_best = [('scaler', scaler), ('clf', best_clf)]
+        final_pipeline_best = ImbPipeline(steps_best)
+
+        steps_last = [('scaler', scaler), ('clf', last_clf)]
+        final_pipeline_last = ImbPipeline(steps_last)
+        return final_pipeline_best, final_pipeline_last, y_pred, y_pred_proba, history, None, None
+
+    def train_lgb_depth8(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
+        """[動態組] LightGBM (max_depth=8, num_leaves=127)"""
+        print(f"\n  [LGB_Depth8] 訓練 {y_name} 模型 (max_depth=8, num_leaves=127)...")
+        
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        X_train_pca = X_train_scaled
+        X_val_pca = X_val_scaled
+        X_test_pca = X_test_scaled
+        
+        clf = lgb.LGBMClassifier(
+            n_estimators=1000, 
+            learning_rate=0.03, 
+            random_state=42, 
+            max_depth=8,
+            num_leaves=127,
+            min_child_samples=30,
+            reg_alpha=0.5,
+            reg_lambda=0.5,
+            verbose=-1
+        )
+        
+        def lgb_balanced_accuracy(y_true, y_pred):
+            y_pred_binary = (y_pred > 0.5).astype(int)
+            score = balanced_accuracy_score(y_true, y_pred_binary)
+            return 'balanced_accuracy', score, True
+        
+        clf.fit(
+            X_train_pca, y_train,
+            eval_set=[(X_train_pca, y_train), (X_val_pca, y_val)],
+            eval_names=['train', 'val'],
+            eval_metric=['binary_error', 'binary_logloss', lgb_balanced_accuracy],
+            callbacks=[
+                lgb.log_evaluation(period=0),
+                lgb.early_stopping(stopping_rounds=50, verbose=False)
+            ]
+        )
+
+        history = {
+            'sizes': list(range(1, len(clf.evals_result_['train']['binary_error']) + 1)),
+            'train_acc': [1 - x for x in clf.evals_result_['train']['binary_error']],
+            'val_acc': [1 - x for x in clf.evals_result_['val']['binary_error']],
+            'train_bal_acc': clf.evals_result_['train']['balanced_accuracy'],
+            'val_bal_acc': clf.evals_result_['val']['balanced_accuracy'],
+            'train_loss': clf.evals_result_['train']['binary_logloss'],
+            'val_loss': clf.evals_result_['val']['binary_logloss']
+        }
+
+        val_losses = clf.evals_result_['val']['binary_logloss']
+        best_iteration = int(np.argmin(val_losses) + 1)
+        print(f"    [LGB_Depth8] 訓練完成，最佳樹數量 (best_iteration): {best_iteration} (最佳驗證 Loss: {val_losses[best_iteration-1]:.4f})")
+        
+        history['best_epoch'] = best_iteration
+
+        best_clf = copy.deepcopy(clf)
+        last_clf = copy.deepcopy(clf)
+
+        y_pred = best_clf.predict(X_test_pca)
+        y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
+        
+        steps_best = [('scaler', scaler), ('clf', best_clf)]
+        final_pipeline_best = ImbPipeline(steps_best)
+
+        steps_last = [('scaler', scaler), ('clf', last_clf)]
+        final_pipeline_last = ImbPipeline(steps_last)
+        return final_pipeline_best, final_pipeline_last, y_pred, y_pred_proba, history, None, None
+
+    def train_lgb_depth9_tuned(self, X_train, X_val, X_test, y_train, y_val, y_test, y_name):
+        """[動態組] LightGBM (max_depth=9, num_leaves=255, tuned with colsample/subsample)"""
+        print(f"\n  [LGB_Depth9_Tuned] 訓練 {y_name} 模型 (max_depth=9, num_leaves=255)...")
+        
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_val_scaled = scaler.transform(X_val)
+        X_test_scaled = scaler.transform(X_test)
+        
+        X_train_pca = X_train_scaled
+        X_val_pca = X_val_scaled
+        X_test_pca = X_test_scaled
+        
+        clf = lgb.LGBMClassifier(
+            n_estimators=1000, 
+            learning_rate=0.03, 
+            random_state=42, 
+            max_depth=9,
+            num_leaves=255,
+            min_child_samples=50,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_alpha=1.0,
+            reg_lambda=1.0,
+            verbose=-1
+        )
+        
+        def lgb_balanced_accuracy(y_true, y_pred):
+            y_pred_binary = (y_pred > 0.5).astype(int)
+            score = balanced_accuracy_score(y_true, y_pred_binary)
+            return 'balanced_accuracy', score, True
+        
+        clf.fit(
+            X_train_pca, y_train,
+            eval_set=[(X_train_pca, y_train), (X_val_pca, y_val)],
+            eval_names=['train', 'val'],
+            eval_metric=['binary_error', 'binary_logloss', lgb_balanced_accuracy],
+            callbacks=[
+                lgb.log_evaluation(period=0),
+                lgb.early_stopping(stopping_rounds=50, verbose=False)
+            ]
+        )
+
+        history = {
+            'sizes': list(range(1, len(clf.evals_result_['train']['binary_error']) + 1)),
+            'train_acc': [1 - x for x in clf.evals_result_['train']['binary_error']],
+            'val_acc': [1 - x for x in clf.evals_result_['val']['binary_error']],
+            'train_bal_acc': clf.evals_result_['train']['balanced_accuracy'],
+            'val_bal_acc': clf.evals_result_['val']['balanced_accuracy'],
+            'train_loss': clf.evals_result_['train']['binary_logloss'],
+            'val_loss': clf.evals_result_['val']['binary_logloss']
+        }
+
+        val_losses = clf.evals_result_['val']['binary_logloss']
+        best_iteration = int(np.argmin(val_losses) + 1)
+        print(f"    [LGB_Depth9_Tuned] 訓練完成，最佳樹數量 (best_iteration): {best_iteration} (最佳驗證 Loss: {val_losses[best_iteration-1]:.4f})")
+        
+        history['best_epoch'] = best_iteration
+
+        best_clf = copy.deepcopy(clf)
+        last_clf = copy.deepcopy(clf)
+
         y_pred = best_clf.predict(X_test_pca)
         y_pred_proba = best_clf.predict_proba(X_test_pca)[:, 1]
         
@@ -577,6 +712,8 @@ class PlotGenerator:
             'SGD': '#1f77b4',
             'MLP': '#ff7f0e',
             'LGB': '#2ca02c',
+            'LGB_Depth8': '#17becf',
+            'LGB_Depth9_Tuned': '#bcbd22',
             'LR': '#d62728',
             'RF': '#9467bd'
         }
@@ -792,6 +929,8 @@ def main():
         models_to_train = [
             ('MLP', trainer.train_mlp),
             ('LGB', trainer.train_lgb),
+            ('LGB_Depth8', trainer.train_lgb_depth8),
+            ('LGB_Depth9_Tuned', trainer.train_lgb_depth9_tuned),
             ('LR', trainer.train_lr)
         ]
 

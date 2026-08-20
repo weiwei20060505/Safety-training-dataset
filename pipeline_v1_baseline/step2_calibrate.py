@@ -82,6 +82,7 @@ def main():
             
             for model_name in models_list:
                 candidate_paths = [
+                    f"models/v1_baseline/unified_training/lgb_y2_test_lgb_tuning/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
                     f"models/v1_baseline/unified_training/lgb_y2_all_models_y2_78k/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
                     f"models/v1_baseline/unified_training/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
                     f"models/v1_baseline/unified_training/lgb_y2_78k_ultimate/layer_{layer_num}/{model_name.lower()}_{target_name}_best.pkl",
