@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "LLM 隱藏狀態機率校正與元評估框架 8月18日.md",
+                "file": "LLM 隱藏狀態機率校正與元評估框架 8月20日.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "LLM 隱藏狀態機率校正與元評估框架 8月18日"
+              "title": "LLM 隱藏狀態機率校正與元評估框架 8月20日"
             }
           }
         ]
@@ -185,11 +185,23 @@
   },
   "active": "b581731e17df4362",
   "lastOpenFiles": [
+    "AI_INSTRUCTIONS.md",
+    "LLM 隱藏狀態機率校正與元評估框架 8月20日.md",
+    "執行結果.md",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/eval_raw_auc.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/eval_raw_logloss.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/eval_raw_brier.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test2_raw_auc.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test2_raw_logloss.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test2_raw_brier.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test1_raw_auc.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test1_raw_logloss.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends/test1_raw_brier.png",
+    "results/v1_baseline/plots_custom/00_PreCalib_Trends",
+    "update_slides.py",
+    "簡報第三頁_草稿.md",
     "results/y1_vs_y2_distribution_matrix.png",
     "reports/V1_vs_V2_Calibration_Defect_Analysis_Report.md",
-    "results/v2_framework/plots_framework_stage2/07_Joint_Calibration/combined/full_1024d/joint_cal_combined_2x3_LGB_Hard_Dual - 複製.png",
-    "results/v2_framework/plots_framework_stage2/07_Joint_Calibration/combined/full_1024d/joint_cal_combined_2x3_MLP_Hard_Dual - 複製.png",
-    "LLM 隱藏狀態機率校正與元評估框架 8月18日.md",
     "scratch10.py",
     "scratch9.py",
     "scratch8.py",
@@ -198,19 +210,8 @@
     "scratch5.py",
     "scratch4.py",
     "scratch3.py",
-    "scratch2.py",
-    "scratch.py",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_eval.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_test2.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_test1.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_RF.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_LR.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_LGB.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_MLP.png",
-    "results/v1_baseline/plots_v1_joint_calibration_split_y1/combined/layer6/joint_cal_comparison_L6_SGD.png",
     "README.md",
     "🗺️專案階段狀態總結.md",
-    "未命名.md",
     "V1_EXECUTION_GUIDE.md",
     "簡報.md",
     "pipeline_v1_baseline/EXECUTION_SUMMARY.md",
